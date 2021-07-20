@@ -84,11 +84,18 @@
 #include <ti/drivers/SD.h>
 
 
+/*#include <pthread.h>
+#include <ti/sysbios/BIOS.h>*/
+
 
 /* Board Header file */
 #include "Board.h"
 
-#include <pthread.h>
+#include "sensors.h"
+
+
+Task_Struct sensorTask;
+Char sensorTaskStack[1024];
 
 
 /////////////////////////// pin configuration ///////////////////////
@@ -108,7 +115,7 @@ float gain = 0;
 
 uint8_t DEVICENUM = 1;
 int channels = 1;
-int lastAmp[1] = {0}; //initialize to the value you want to start the signal at (must be as long as channel)
+int lastAmp[1] = {0}; //initialize to the value you want to start the signal2 at (must be as long as channel)
 static int MUXFREQ = 200; //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
 #define ADC_SAMPLE_COUNT    (1) //Number of samples to read each time we call the callback function (how many samples per row on output)
 #define ADCMULTIPLE         (1) //How many times to call the ADC within one mux switch (total samples per switch will equal ADCMULTIPLE*ADC_SAMPLE_COUNT)
@@ -273,10 +280,10 @@ bool openDone = true;
 uint8_t counterDAC = 0;
 uint8_t counterDATA = 0;
 
-struct { //Used to store the signal amplitude (max is 4095)
+struct { //Used to store the signal2 amplitude (max is 4095)
     uint16_t ampAC : 12;
     uint16_t ampDC : 12;
-} signal;
+} signal2;
 
 // Function Declarations
 static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool result);
@@ -319,7 +326,7 @@ void uartCallback(UART_Handle handle, void *buf, size_t count) {
 static void mainThread(UArg a0, UArg a1)
 {
     // Initialize Variables
-    signal.ampAC = lastAmp;
+    signal2.ampAC = lastAmp;
 
     // Call Driver Init Functions
     I2C_init();
@@ -352,14 +359,14 @@ static void mainThread(UArg a0, UArg a1)
     I2Cparams.transferCallbackFxn = i2cWriteCallback;
 
     // Initialize master I2C transaction structure
-    i2cTrans1.writeBuf     = txBuffer1; //Square signal
+    i2cTrans1.writeBuf     = txBuffer1; //Square signal2
     i2cTrans1.writeCount   = 2;
     i2cTrans1.readBuf      = NULL;
     i2cTrans1.readCount    = 0;
     i2cTrans1.slaveAddress = 0x4C; //hex converter: https://www.cs.princeton.edu/courses/archive/fall07/cos109/bc.html
 
     // Initialize master I2C transaction structure
-    i2cTrans2.writeBuf     = txBuffer2; //DC Signal
+    i2cTrans2.writeBuf     = txBuffer2; //DC signal2
     i2cTrans2.writeCount   = 2;
     i2cTrans2.readBuf      = NULL;
     i2cTrans2.readCount    = 0;
@@ -408,12 +415,12 @@ static void mainThread(UArg a0, UArg a1)
         while (1);
     }
 
-    signal.ampAC = lastAmp[muxmod];
-    signal.ampDC = signal.ampAC/2;
-    txBuffer1[0] = signal.ampAC >> 8; //hi byte
-	txBuffer1[1] = signal.ampAC; //lower 2 bytes
-	txBuffer2[0] = signal.ampDC >> 8; //hi byte
-	txBuffer2[1] = signal.ampDC; //lower 2 bytes
+    signal2.ampAC = lastAmp[muxmod];
+    signal2.ampDC = signal2.ampAC/2;
+    txBuffer1[0] = signal2.ampAC >> 8; //hi byte
+	txBuffer1[1] = signal2.ampAC; //lower 2 bytes
+	txBuffer2[0] = signal2.ampDC >> 8; //hi byte
+	txBuffer2[1] = signal2.ampDC; //lower 2 bytes
     I2C_transfer(I2Chandle, &i2cTrans1);
     I2C_transfer(I2Chandle, &i2cTrans2);
 
@@ -496,24 +503,24 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     GPIO_toggle(Board_GPIO_LED0);
     //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_ON);
     if (counterDAC%2==0){
-        if (lastAmp[muxmod]==signal.ampAC){
-            // Signal goes high
+        if (lastAmp[muxmod]==signal2.ampAC){
+            // signal2 goes high
             // Do I2C transfer (in callback mode)
-            txBuffer1[0] = signal.ampAC >> 8; //hi byte
-	        txBuffer1[1] = signal.ampAC; //lower 2 bytes
+            txBuffer1[0] = signal2.ampAC >> 8; //hi byte
+	        txBuffer1[1] = signal2.ampAC; //lower 2 bytes
         }else{ // Change to a new magnitude
-            signal.ampAC = lastAmp[muxmod];
-            signal.ampDC = signal.ampAC/2;
-            txBuffer1[0] = signal.ampAC >> 8; //hi byte
-	        txBuffer1[1] = signal.ampAC; //lower 2 bytes
-	        txBuffer2[0] = signal.ampDC >> 8; //hi byte
-	        txBuffer2[1] = signal.ampDC; //lower 2 bytes
+            signal2.ampAC = lastAmp[muxmod];
+            signal2.ampDC = signal2.ampAC/2;
+            txBuffer1[0] = signal2.ampAC >> 8; //hi byte
+	        txBuffer1[1] = signal2.ampAC; //lower 2 bytes
+	        txBuffer2[0] = signal2.ampDC >> 8; //hi byte
+	        txBuffer2[1] = signal2.ampDC; //lower 2 bytes
 	        I2C_transfer(I2Chandle, &i2cTrans2);
         }
     }else{
-        // Signal goes to zero
+        // signal2 goes to zero
         // Do I2C transfer (in callback mode)
-        //signal.ampAC = 0;
+        //signal2.ampAC = 0;
         txBuffer1[0] = 0; //hi byte
 	   txBuffer1[1] = 0; //lower 2 bytes
     }
@@ -648,6 +655,14 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 };
 
 void Sensors_createTask(void) {
+    Task_Params taskParams;
 
-    return;
+    // Configure task
+    Task_Params_init(&taskParams);
+    taskParams.stack = sensorTaskStack;
+    taskParams.stackSize = 1024;
+    taskParams.priority = 1;
+
+    Task_construct(&sensorTask, mainThread, &taskParams, NULL);
+
 }
