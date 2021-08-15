@@ -90,6 +90,7 @@
 
 /* Board Header file */
 #include "Board.h"
+#include "DiskAccess.h"
 
 #include "sensors.h"
 
@@ -323,16 +324,18 @@ void uartCallback(UART_Handle handle, void *buf, size_t count) {
  *  ======== mainThread ========
  */
 //void *mainThread(void *arg0)
-static void mainThread(UArg a0, UArg a1)
+//static void mainThread(UArg a0, UArg a1)
+void Sensors_init()
 {
     // Initialize Variables
     signal2.ampAC = lastAmp;
+
 
     // Call Driver Init Functions
     I2C_init();
     ADC_init();
     GPIO_init();
-    SD_init();
+    da_initialize();
 
     ////////////////////////////////////////////// GPIO /////////////////////////////////////////
     /* Configure the LED pins */
@@ -350,7 +353,7 @@ static void mainThread(UArg a0, UArg a1)
     /* Turn on user LED */
     GPIO_write(Board_DIO0, 0);
 
-        ////////////////////////////////////////////// I2C //////////////////////////////////////////
+    ////////////////////////////////////////////// I2C //////////////////////////////////////////
 
     // Configure I2C parameters.
     I2C_Params_init(&I2Cparams);
@@ -371,6 +374,7 @@ static void mainThread(UArg a0, UArg a1)
     i2cTrans2.readBuf      = NULL;
     i2cTrans2.readCount    = 0;
     i2cTrans2.slaveAddress = 0x4D; //hex converter: https://www.cs.princeton.edu/courses/archive/fall07/cos109/bc.html
+
 
     ////////////////////////////////////////////// GPTimer for DAC //////////////////////////////////////////
     GPTimerCC26XX_Params paramsDAC;
@@ -400,11 +404,10 @@ static void mainThread(UArg a0, UArg a1)
     //GPTimerCC26XX_Value loadValDAC = 48000000; //48e6 = 1 sec
     GPTimerCC26XX_Value loadValDAC = 48000000/(MUXFREQ*2);
     loadValDAC = loadValDAC - 1;
+
+
     GPTimerCC26XX_setLoadValue(hDACTimer, loadValDAC);
     GPTimerCC26XX_registerInterrupt(hDACTimer, DACtimerCallback, GPT_INT_TIMEOUT);
-
-    GPTimerCC26XX_start(hDACTimer);
-
     /////////////////////////////////////////////////////////////////////////////////////////////
     // Open I2C
     I2Chandle = I2C_open(Board_I2C0, &I2Cparams);
@@ -454,7 +457,7 @@ static void mainThread(UArg a0, UArg a1)
   GPTimerCC26XX_registerInterrupt(hMUXTimer, MUXtimerCallback, GPT_INT_TIMEOUT);
 
 
-  GPTimerCC26XX_start(hMUXTimer);
+
 
 ////////////////////////////////////////////////////////////////// ADC/ UART //////////////////////////////////////////////////////////
     /* Create a UART with data processing off. */
@@ -462,12 +465,13 @@ static void mainThread(UArg a0, UArg a1)
     UART_init();
     UART_Params_init(&uartParams);
     uartParams.writeDataMode = UART_DATA_BINARY;
-    uartParams.writeMode = UART_MODE_CALLBACK;
+    uartParams.writeMode = /*UART_MODE_BLOCKING;*/UART_MODE_CALLBACK;
     uartParams.writeCallback = uartCallback;
     //uartParams.baudRate = 115200;
     uartParams.baudRate = 230400;
     //uartParams.baudRate = 460800;
     uart = UART_open(Board_UART0, &uartParams);
+
 
     ADC_Params_init(&params);
     adc = ADC_open(Board_ADC0, &params);// ADC0 uses IDIO_25 (change in cc26xx.c file in ADC section by commenting things out)
@@ -476,15 +480,45 @@ static void mainThread(UArg a0, UArg a1)
         while (1);
     }
 
+
+    UART_write(uart, "Loading sd card\n", 17);
+    int res = da_load();
+    if (res == -1) {
+        UART_write(uart, "Card handle null\n", 18);
+        return;
+    }
+    else if (res == -2) {
+        UART_write(uart, "Status returned failure\n", 25);
+        return;
+    }
+    else if (res == -3) {
+        UART_write(uart, "Unable to read first sector\n", 29);
+        return;
+    }
+    else if (res == 1) {
+        UART_write(uart, "Success\n", 9);
+    }
+    else {
+        UART_write(uart, "Unknown error\n", 15);
+        return;
+    }
+
+    char buf[64];
+
+    System_sprintf(buf, "Num Sectors: %d\nSector Size: %d\n\0", da_get_num_sectors(), da_get_sector_size());
+    UART_write(uart, buf, strlen(buf));
+    System_sprintf(buf, "Read pos: %d\nwrite pos: %d\n\0", da_get_read_pos(), da_get_write_pos());
+    UART_write(uart, buf, strlen(buf));
+    //da_clear();
+
+    //GPTimerCC26XX_start(hMUXTimer);
+    //GPTimerCC26XX_start(hDACTimer);
+
+
+
  ////////////////////////////////////// Set Up timer Based Interrupts /////////////////////////////////
 
 
-
-
-  while(1) {
-    Task_sleep(BIOS_WAIT_FOREVER);
-    //sleep(1000);
-  }
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -528,7 +562,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     if(counterDAC == 2){
         counterDAC = 0; //reset counter back to zero, if it equals the 2
     }else{
-        uint16_t     i;
+        //uint16_t     i;
         uint_fast16_t uartTxBufferOffset = 0;
         char uartTxBuffer[UARTBUFFERSIZE] = {0};
 
@@ -571,7 +605,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
 
         //double total=0;
-        int j;//variable declaration
+        //int j;//variable declaration
         //for(j = 0; j <= ADC_SAMPLE_COUNT; j++){
         //    total=total+adcVal[j];//loop for calculatin total
         //}
@@ -598,26 +632,12 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         }
 
         /* Display the data via UART */
-        UART_write(uart, uartTxBuffer, uartTxBufferOffset);
+
+         UART_write(uart, uartTxBuffer, uartTxBufferOffset);
+
         counterDATA += 1; //increment sample counter once finished
 
-    int_fast8_t   result;
-    uint_fast32_t cardCapacity;
-    uint_fast32_t totalSectors;
-    uint_fast32_t sectorSize;
-    uint_fast32_t sectors;
-    //int           i;
-    SD_Handle     sdHandle;
 
-        /*********Write to SD card*******/
-    /*sdHandle = SD_open(Board_SD0, NULL);
-    result = SD_initialize(sdHandle);
-    totalSectors = SD_getNumSectors(sdHandle);
-    sectorSize = SD_getSectorSize(sdHandle);
-    cardCapacity = (totalSectors / BYTESPERKILOBYTE) * sectorSize;
-    result = SD_write(sdHandle, uartTxBuffer, STARTINGSECTOR, sectors);
-    //result = SD_read(sdHandle, cpy_buff, STARTINGSECTOR, sectors);
-    SD_close(sdHandle);*/
 
         //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
         if (adcValue < ADCloLimit) {
@@ -653,7 +673,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
 
 };
-
+/*
 void Sensors_createTask(void) {
     Task_Params taskParams;
 
@@ -665,4 +685,16 @@ void Sensors_createTask(void) {
 
     Task_construct(&sensorTask, mainThread, &taskParams, NULL);
 
+}
+*/
+
+
+void Sensors_start_timers() {
+    GPTimerCC26XX_start(hMUXTimer);
+    GPTimerCC26XX_start(hDACTimer);
+}
+
+void Sensors_stop_timers() {
+    GPTimerCC26XX_stop(hMUXTimer);
+    GPTimerCC26XX_stop(hDACTimer);
 }

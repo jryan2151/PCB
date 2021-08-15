@@ -136,6 +136,10 @@ extern bStatus_t Bacpac_service_SetParameter(uint8_t param, uint16_t len, void *
  */
 extern bStatus_t Bacpac_service_GetParameter(uint8_t param, uint16_t *len, void *value);
 
+
+short isExercising();
+short isTransferring();
+
 /*********************************************************************
 *********************************************************************/
 

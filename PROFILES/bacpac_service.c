@@ -63,6 +63,8 @@
 /*********************************************************************
 * GLOBAL VARIABLES
 */
+short transferring = 0;
+short exercising = 0;
 
 // bacpac_service Service UUID
 CONST uint8_t bacpac_serviceUUID[ATT_BT_UUID_SIZE] =
@@ -227,6 +229,15 @@ static bStatus_t bacpac_service_ReadAttrCB( uint16_t connHandle, gattAttribute_t
 static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
                                             uint8_t *pValue, uint16_t len, uint16_t offset,
                                             uint8_t method );
+
+short isTransferring() {
+    return transferring;
+}
+
+short isExercising() {
+    return exercising;
+}
+
 
 /*********************************************************************
  * PROFILE CALLBACKS
@@ -500,6 +511,8 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
     {
       // Copy pValue into the variable we point to from the attribute table.
       memcpy(pAttr->pValue + offset, pValue, len);
+      if (pAttr->pValue[0]) exercising = 1;
+      else exercising = 0;
 
       // Only notify application if entire expected value is written
       if ( offset + len == BACPAC_SERVICE_EXERCISING_LEN)

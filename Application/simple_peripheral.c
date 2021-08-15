@@ -637,7 +637,7 @@ static void SimplePeripheral_init(void)
   HCI_LE_ReadLocalSupportedFeaturesCmd();
 #endif // !defined (USE_LL_CONN_PARAM_UPDATE)
 
-  Display_print0(dispHandle, 0, 0, "BLE Peripheral");
+  Display_print0(dispHandle, 0, 0, "BLE Peripheral\n");
 }
 
 /*********************************************************************
@@ -655,6 +655,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
   SimplePeripheral_init();
 
   // Application main loop
+
   for (;;)
   {
     uint32_t events;
@@ -720,6 +721,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
       }
     }
   }
+
 }
 
 /*********************************************************************
@@ -999,7 +1001,7 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
 
         // Display device address
         Display_print0(dispHandle, 1, 0, Util_convertBdAddr2Str(ownAddress));
-        Display_print0(dispHandle, 2, 0, "Initialized");
+        Display_print0(dispHandle, 2, 0, "Initialized\n");
 
         // Device starts advertising upon initialization of GAP
         uint8_t initialAdvertEnable = TRUE;
@@ -1010,7 +1012,7 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_ADVERTISING:
-      Display_print0(dispHandle, 2, 0, "Advertising");
+      Display_print0(dispHandle, 2, 0, "Advertising\n");
       break;
 
 #ifdef PLUS_BROADCASTER
@@ -1053,7 +1055,7 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
         // connection
         if ( linkDB_GetInfo( numActive - 1, &linkInfo ) == SUCCESS )
         {
-          Display_print1(dispHandle, 2, 0, "Num Conns: %d", (uint16_t)numActive);
+          Display_print1(dispHandle, 2, 0, "Num Conns: %d\n", (uint16_t)numActive);
           Display_print0(dispHandle, 3, 0, Util_convertBdAddr2Str(linkInfo.addr));
         }
         else
@@ -1062,7 +1064,7 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
 
           GAPRole_GetParameter(GAPROLE_CONN_BD_ADDR, peerAddress);
 
-          Display_print0(dispHandle, 2, 0, "Connected");
+          Display_print0(dispHandle, 2, 0, "Connected\n");
           Display_print0(dispHandle, 3, 0, Util_convertBdAddr2Str(peerAddress));
         }
 
@@ -1091,7 +1093,7 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_CONNECTED_ADV:
-      Display_print0(dispHandle, 2, 0, "Connected Advertising");
+      Display_print0(dispHandle, 2, 0, "Connected Advertising\n");
       break;
 
     case GAPROLE_WAITING:
@@ -1105,14 +1107,14 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
         Display_clearLines(dispHandle, 3, 5);
         
         GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advertReEnable);
-        Display_print0(dispHandle, 2, 0, "Advertising");
+        Display_print0(dispHandle, 2, 0, "Advertising\n");
       }
       break;
 
     case GAPROLE_WAITING_AFTER_TIMEOUT:
       attRsp_freeAttRsp(bleNotConnected);
 
-      Display_print0(dispHandle, 2, 0, "Timed Out");
+      Display_print0(dispHandle, 2, 0, "Timed Out\n");
 
       // Clear remaining lines
       Display_clearLines(dispHandle, 3, 5);
@@ -1124,7 +1126,7 @@ static void SimplePeripheral_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_ERROR:
-      Display_print0(dispHandle, 2, 0, "Error");
+      Display_print0(dispHandle, 2, 0, "Error\n");
       break;
 
     default:
@@ -1245,35 +1247,35 @@ static void SimplePeripheral_processPairState(uint8_t state, uint8_t status)
 {
   if (state == GAPBOND_PAIRING_STATE_STARTED)
   {
-    Display_print0(dispHandle, 2, 0, "Pairing started");
+    Display_print0(dispHandle, 2, 0, "Pairing started\n");
   }
   else if (state == GAPBOND_PAIRING_STATE_COMPLETE)
   {
     if (status == SUCCESS)
     {
-      Display_print0(dispHandle, 2, 0, "Pairing success");
+      Display_print0(dispHandle, 2, 0, "Pairing success\n");
     }
     else
     {
-      Display_print1(dispHandle, 2, 0, "Pairing fail: %d", status);
+      Display_print1(dispHandle, 2, 0, "Pairing fail: %d\n", status);
     }
   }
   else if (state == GAPBOND_PAIRING_STATE_BONDED)
   {
     if (status == SUCCESS)
     {
-      Display_print0(dispHandle, 2, 0, "Bonding success");
+      Display_print0(dispHandle, 2, 0, "Bonding success\n");
     }
   }
   else if (state == GAPBOND_PAIRING_STATE_BOND_SAVED)
   {
     if (status == SUCCESS)
     {
-      Display_print0(dispHandle, 2, 0, "Bond save success");
+      Display_print0(dispHandle, 2, 0, "Bond save success\n");
     }
     else
     {
-      Display_print1(dispHandle, 2, 0, "Bond save failed: %d", status);
+      Display_print1(dispHandle, 2, 0, "Bond save failed: %d\n", status);
     }
   }
 }
