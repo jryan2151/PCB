@@ -83,6 +83,7 @@
 #include "board.h"
 
 #include "simple_peripheral.h"
+#include "Sensors/sensors.h"
 
 /*********************************************************************
  * CONSTANTS
@@ -468,6 +469,8 @@ static void SimplePeripheral_init(void)
   #endif // DEBUG_SW_TRACE
 #endif // USE_FPGA
 
+
+  Sensors_init();
   // Create an RTOS queue for message from profile to be sent to app.
   appMsgQueue = Util_constructQueue(&appMsg);
 

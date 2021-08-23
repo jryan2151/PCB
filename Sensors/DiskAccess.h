@@ -3,6 +3,7 @@
 
 #include <ti/drivers/SD.h>
 #include <xdc/runtime/System.h>
+#include "Board.h"
 
 
 // comment out these lines below when putting on board

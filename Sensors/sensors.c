@@ -59,8 +59,6 @@
 
  */
 
-/* For usleep() */
-//#include <unistd.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -82,10 +80,7 @@
 #include <ti/sysbios/knl/Task.h>
 #include <xdc/runtime/Types.h>
 #include <ti/drivers/SD.h>
-
-
-/*#include <pthread.h>
-#include <ti/sysbios/BIOS.h>*/
+#include <xdc/runtime/System.h>
 
 
 /* Board Header file */
@@ -93,11 +88,6 @@
 #include "DiskAccess.h"
 
 #include "sensors.h"
-
-
-Task_Struct sensorTask;
-Char sensorTaskStack[1024];
-
 
 /////////////////////////// pin configuration ///////////////////////
 /* Pin driver handles */
@@ -142,13 +132,8 @@ PIN_Config muxPinTable[] = {
 
 /////////////////////////// mux task configuration ///////////////////////
 /* Task data */
-//Task_Struct timerTask;
-//char timerTaskStack[512];
-
 GPTimerCC26XX_Handle hMUXTimer;
 void MUXtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-    // interrupt callback code goes here. Minimize processing in interrupt.
-    //GPIO_toggle(Board_GPIO_LED1);
         muxmod = muxidx % channels; //get remainder of muxidx for switch
     switch(muxmod) {
         case 0: //2
@@ -268,7 +253,6 @@ void MUXtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     if(muxidx == channels){
         muxidx = 0; //reset counter back to zero, if it equals the number of channels
     }
-    //GPIO_toggle(Board_GPIO_LED1);
 }
 
 ///////////////////////////////////// I2C preamble //////////////////////////
@@ -312,13 +296,8 @@ char uartTxBuffer[UARTBUFFERSIZE];
 
 UART_Handle uart;
 
-
-/*
- * Callback function to use the UART in callback mode. It does nothing.
- */
-void uartCallback(UART_Handle handle, void *buf, size_t count) {
-   return;
-}
+// Callback function to use the UART in callback mode. It does nothing.
+void uartCallback(UART_Handle handle, void *buf, size_t count) { return; }
 
 /*
  *  ======== mainThread ========
@@ -329,7 +308,6 @@ void Sensors_init()
 {
     // Initialize Variables
     signal2.ampAC = lastAmp;
-
 
     // Call Driver Init Functions
     I2C_init();
@@ -389,26 +367,12 @@ void Sensors_init()
 
     Types_FreqHz  freq;
     BIOS_getCpuFreq(&freq); //48MHz
-    //GPTimerCC26XX_Value loadValDAC = freq.lo / 1000; //47999 = 1ms. 1 clock tick = 1/48e6
-    //GPTimerCC26XX_Value loadValDAC = 48000000; //48e6 = 1 sec
-    //GPTimerCC26XX_Value loadValDAC = 30000; //30e3 = 0.000625 sec = 1600 Hz (for 16 channels at 100 Hz)
-    //GPTimerCC26XX_Value loadValDAC = 48000; //48e3 = 0.001 sec = 1000 Hz
-    //GPTimerCC26XX_Value loadValDAC = 240000; //24e4 = 0.005 sec = 200 Hz
-    //GPTimerCC26XX_Value loadValDAC = 320000; // 150 Hz
-    //GPTimerCC26XX_Value loadValDAC = 480000; //48e4 = 0.01 sec = 100 Hz
-    //GPTimerCC26XX_Value loadValDAC = 600000; //60e4 = 80 Hz
-    //GPTimerCC26XX_Value loadValDAC = 960000; //96e4 = 0.02 sec = 50 Hz
-    //GPTimerCC26XX_Value loadValDAC = 2400000; // 24e5 = 20 Hz
-    //GPTimerCC26XX_Value loadValDAC = 4800000; //48e5 = 0.1 sec = 10 Hz
-    //GPTimerCC26XX_Value loadValDAC = 24000000; //24e6 = 0.5 sec = 2 Hz
-    //GPTimerCC26XX_Value loadValDAC = 48000000; //48e6 = 1 sec
     GPTimerCC26XX_Value loadValDAC = 48000000/(MUXFREQ*2);
     loadValDAC = loadValDAC - 1;
 
 
     GPTimerCC26XX_setLoadValue(hDACTimer, loadValDAC);
     GPTimerCC26XX_registerInterrupt(hDACTimer, DACtimerCallback, GPT_INT_TIMEOUT);
-    /////////////////////////////////////////////////////////////////////////////////////////////
     // Open I2C
     I2Chandle = I2C_open(Board_I2C0, &I2Cparams);
 
@@ -443,21 +407,15 @@ void Sensors_init()
   paramsMUX.mode           = GPT_MODE_PERIODIC_UP;
   paramsMUX.debugStallMode = GPTimerCC26XX_DEBUG_STALL_OFF;
   hMUXTimer = GPTimerCC26XX_open(CC2640R2_LAUNCHXL_GPTIMER1A, &paramsMUX); //Need timer 0A for ADCbuf
+
   if(hMUXTimer == NULL) {
     Task_exit();
   }
 
-
-
-  //GPTimerCC26XX_Value loadVal = freq.lo / 1000; //47999 = 1ms. 1 clock tick = 1/48e6
-  //GPTimerCC26XX_Value loadVal = 48000000; //48e6 = 1 sec
   GPTimerCC26XX_Value loadValMUX = 48000000/MUXFREQ;
   loadValMUX = loadValMUX - 1;
   GPTimerCC26XX_setLoadValue(hMUXTimer, loadValMUX);
   GPTimerCC26XX_registerInterrupt(hMUXTimer, MUXtimerCallback, GPT_INT_TIMEOUT);
-
-
-
 
 ////////////////////////////////////////////////////////////////// ADC/ UART //////////////////////////////////////////////////////////
     /* Create a UART with data processing off. */
@@ -467,9 +425,8 @@ void Sensors_init()
     uartParams.writeDataMode = UART_DATA_BINARY;
     uartParams.writeMode = /*UART_MODE_BLOCKING;*/UART_MODE_CALLBACK;
     uartParams.writeCallback = uartCallback;
-    //uartParams.baudRate = 115200;
     uartParams.baudRate = 230400;
-    //uartParams.baudRate = 460800;
+    //uartParams.baudRate = 115200;
     uart = UART_open(Board_UART0, &uartParams);
 
 
@@ -477,48 +434,10 @@ void Sensors_init()
     adc = ADC_open(Board_ADC0, &params);// ADC0 uses IDIO_25 (change in cc26xx.c file in ADC section by commenting things out)
     if (adc == NULL) {
         // Error initializing ADC channel 0
-        while (1);
-    }
-
-
-    UART_write(uart, "Loading sd card\n", 17);
-    int res = da_load();
-    if (res == -1) {
-        UART_write(uart, "Card handle null\n", 18);
-        return;
-    }
-    else if (res == -2) {
-        UART_write(uart, "Status returned failure\n", 25);
-        return;
-    }
-    else if (res == -3) {
-        UART_write(uart, "Unable to read first sector\n", 29);
-        return;
-    }
-    else if (res == 1) {
-        UART_write(uart, "Success\n", 9);
-    }
-    else {
-        UART_write(uart, "Unknown error\n", 15);
         return;
     }
 
-    char buf[64];
-
-    System_sprintf(buf, "Num Sectors: %d\nSector Size: %d\n\0", da_get_num_sectors(), da_get_sector_size());
-    UART_write(uart, buf, strlen(buf));
-    System_sprintf(buf, "Read pos: %d\nwrite pos: %d\n\0", da_get_read_pos(), da_get_write_pos());
-    UART_write(uart, buf, strlen(buf));
-    //da_clear();
-
-    //GPTimerCC26XX_start(hMUXTimer);
-    //GPTimerCC26XX_start(hDACTimer);
-
-
-
- ////////////////////////////////////// Set Up timer Based Interrupts /////////////////////////////////
-
-
+    Sensors_load_test();
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -532,10 +451,67 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
     }
 };
 
+void Sensors_write_test() {
+    UART_write(uart, "Write test\n", 12);
+    da_write("Simple Peripheral sd card write test. Please work for me======\n\0", 64);
+}
+
+void Sensors_read_test() {
+    char myBuf[64];
+    da_read(myBuf, 64);
+    UART_write(uart, myBuf, 64);
+}
+
+void Sensors_size_test() {
+    char myBuf[64];
+    System_sprintf(myBuf, "s size: %d num s: %d\n\0", da_get_sector_size(), da_get_num_sectors());
+    UART_write(uart, myBuf, strlen(myBuf));
+}
+
+void Sensors_pos_test() {
+    char myBuf[64];
+    System_sprintf(myBuf, "read pos: %d write pos: %d\n\0", da_get_read_pos(), da_get_write_pos());
+    UART_write(uart, myBuf, strlen(myBuf));
+}
+
+void Sensors_clear_test() {
+    UART_write(uart, "Clear test\n", 12);
+    da_clear();
+}
+
+void Sensors_load_test() {
+    int res = da_load();
+    if (res == -1) {
+        UART_write(uart, "Loading sd card: Card handle null\n", 35);
+        return;
+    }
+    else if (res == -2) {
+        UART_write(uart, "Loading sd card: Status returned failure\n", 42);
+        return;
+    }
+    else if (res == -3) {
+        UART_write(uart, "Loading sd card: Unable to read first sector\n", 46);
+        return;
+    }
+    else if (res == 1) {
+        UART_write(uart, "Loading sd card: Success\n", 26);
+    }
+    else {
+        UART_write(uart, "Loading sd card: Unknown error\n", 32);
+        return;
+    }
+}
+
+void Sensors_close_test() {
+    UART_write(uart, "Close test\n", 12);
+    da_close();
+}
+
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
     // interrupt callback code goes here. Minimize processing in interrupt.
-    GPIO_toggle(Board_GPIO_LED0);
+    //GPIO_toggle(Board_GPIO_LED0);
     //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_ON);
+
     if (counterDAC%2==0){
         if (lastAmp[muxmod]==signal2.ampAC){
             // signal2 goes high
@@ -571,53 +547,23 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         int res1 = 0;
         uint32_t adcVal = 0;
 
-        //int c; //finagle a delay
-        //for (c = 1; c <= 3200; c++)
-        //    {}
-
         if (uartTxBufferOffset < UARTBUFFERSIZE) {
-            //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset, UARTBUFFERSIZE - uartTxBufferOffset, "\r\nChannel: ");
             amp = ADC_convertRawToMicroVolts(adc,lastAmp[muxmod])/ampFactor;
-            //amp = lastAmp[muxmod]/ampFactor;
 
-            //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)DEVICENUM); // outputs device number
             uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)counterDATA); // outputs sample number
             uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)muxmod); // outputs channel number
-            //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint32_t)amp); // outputs input voltage
         }
 
-        //GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_ON);
-        //double adcVal[ADC_SAMPLE_COUNT];
+        res1 = ADC_convert(adc, &adcValue);
 
-        //for (i = 0; i < ADC_SAMPLE_COUNT; i++) {
-        //    res1 = ADC_convert(adc, &adcValue[i]);
-                res1 = ADC_convert(adc, &adcValue);
-            if (res1 == ADC_STATUS_SUCCESS) {
-        //        adcVal[i] = ADC_convertRawToMicroVolts(adc,adcValue[i]);
-                    adcVal = ADC_convertRawToMicroVolts(adc,adcValue);
-                    /* Write channel number to the UART buffer if there is room. */
-                //if (uartTxBufferOffset < UARTBUFFERSIZE) {
-                    //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "\rADC Reading: ");
-                    //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint32_t)adcVal); // outputs output voltage
-                //}
-            }
-        //}
-
-
-        //double total=0;
-        //int j;//variable declaration
-        //for(j = 0; j <= ADC_SAMPLE_COUNT; j++){
-        //    total=total+adcVal[j];//loop for calculatin total
-        //}
-        //avg = total/j;//calculate average
+        if (res1 == ADC_STATUS_SUCCESS) {
+            adcVal = ADC_convertRawToMicroVolts(adc,adcValue);
+        }
 
         avg = adcVal;
         gain = (float)avg/amp;
 
-        //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",lastAmp[muxmod]); // outputs gain value
-        //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",adcValue); // outputs gain value
         uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%.2f,",(float)gain); // outputs gain value
-        //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint16_t)lastAmp[muxmod]); // outputs12-bit form of input voltage
 
         GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
             /*
@@ -634,10 +580,9 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         /* Display the data via UART */
 
          UART_write(uart, uartTxBuffer, uartTxBufferOffset);
+         da_write(uartTxBuffer, uartTxBufferOffset);
 
         counterDATA += 1; //increment sample counter once finished
-
-
 
         //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
         if (adcValue < ADCloLimit) {
@@ -673,21 +618,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
 
 };
-/*
-void Sensors_createTask(void) {
-    Task_Params taskParams;
-
-    // Configure task
-    Task_Params_init(&taskParams);
-    taskParams.stack = sensorTaskStack;
-    taskParams.stackSize = 1024;
-    taskParams.priority = 1;
-
-    Task_construct(&sensorTask, mainThread, &taskParams, NULL);
-
-}
-*/
-
 
 void Sensors_start_timers() {
     GPTimerCC26XX_start(hMUXTimer);
@@ -698,3 +628,4 @@ void Sensors_stop_timers() {
     GPTimerCC26XX_stop(hMUXTimer);
     GPTimerCC26XX_stop(hDACTimer);
 }
+

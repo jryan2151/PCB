@@ -215,10 +215,10 @@ int main()
   /* Kick off profile - Priority 3 */
   GAPRole_createTask();
 
-  Sensors_init();
+  //Sensors_init();
 
   //Sensors_createTask();
-  //SimplePeripheral_createTask();
+  SimplePeripheral_createTask();
 
   /* enable interrupts and start SYS/BIOS */
   BIOS_start();

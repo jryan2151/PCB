@@ -47,6 +47,7 @@
 #include "icall_ble_api.h"
 
 #include "bacpac_service.h"
+#include "Sensors/sensors.h"
 
 /*********************************************************************
  * MACROS
@@ -63,8 +64,6 @@
 /*********************************************************************
 * GLOBAL VARIABLES
 */
-short transferring = 0;
-short exercising = 0;
 
 // bacpac_service Service UUID
 CONST uint8_t bacpac_serviceUUID[ATT_BT_UUID_SIZE] =
@@ -229,15 +228,6 @@ static bStatus_t bacpac_service_ReadAttrCB( uint16_t connHandle, gattAttribute_t
 static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
                                             uint8_t *pValue, uint16_t len, uint16_t offset,
                                             uint8_t method );
-
-short isTransferring() {
-    return transferring;
-}
-
-short isExercising() {
-    return exercising;
-}
-
 
 /*********************************************************************
  * PROFILE CALLBACKS
@@ -495,6 +485,28 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
       // Copy pValue into the variable we point to from the attribute table.
       memcpy(pAttr->pValue + offset, pValue, len);
 
+      switch (pAttr->pValue[0]){
+      case 0:
+          Sensors_read_test();
+          break;
+      case 1:
+          Sensors_write_test();
+          break;
+      case 2:
+          Sensors_clear_test();
+          break;
+      case 3:
+          Sensors_close_test();
+          break;
+      case 4:
+          Sensors_load_test();
+          break;
+      case 5:
+          Sensors_size_test();
+          break;
+      default:
+          Sensors_pos_test();
+      };
       // Only notify application if entire expected value is written
       if ( offset + len == BACPAC_SERVICE_TRANSFERRING_LEN)
         paramID = BACPAC_SERVICE_TRANSFERRING_ID;
@@ -511,8 +523,8 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
     {
       // Copy pValue into the variable we point to from the attribute table.
       memcpy(pAttr->pValue + offset, pValue, len);
-      if (pAttr->pValue[0]) exercising = 1;
-      else exercising = 0;
+      if (pAttr->pValue[0]) Sensors_start_timers();
+      else Sensors_stop_timers();
 
       // Only notify application if entire expected value is written
       if ( offset + len == BACPAC_SERVICE_EXERCISING_LEN)
