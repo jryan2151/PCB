@@ -15,7 +15,7 @@ int da_initialize() {
 
 int da_load() {
     int delimiter = 0;
-    int result = 0;
+    //int result = 0;
 
     card.sdHandle = SD_open(Board_SD0, NULL);
     if (card.sdHandle == NULL) return -1;
@@ -29,9 +29,10 @@ int da_load() {
     card.txn_buffer = (char *) malloc(card.sector_size * sizeof(char));
     card.total_size = 0;//card.sector_size * card.num_sectors; // potential for integer overflow... oops
 
-    //return 1;
     status = SD_read(card.sdHandle, card.txn_buffer, 0, 1);
-    if (status != SD_STATUS_SUCCESS) return -3;
+    if (status != SD_STATUS_SUCCESS) {
+        return -3;
+    }
 
 
     int i = 0;

@@ -140,7 +140,7 @@
 #define SBP_TASK_PRIORITY                     1
 
 #ifndef SBP_TASK_STACK_SIZE
-#define SBP_TASK_STACK_SIZE                   644
+#define SBP_TASK_STACK_SIZE                   1024 //644
 #endif
 
 // Application events

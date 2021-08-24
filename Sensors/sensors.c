@@ -434,7 +434,7 @@ void Sensors_init()
     adc = ADC_open(Board_ADC0, &params);// ADC0 uses IDIO_25 (change in cc26xx.c file in ADC section by commenting things out)
     if (adc == NULL) {
         // Error initializing ADC channel 0
-        return;
+        while(1);
     }
 
     Sensors_load_test();
@@ -480,7 +480,7 @@ void Sensors_clear_test() {
 }
 
 void Sensors_load_test() {
-    int res = da_load();
+    /*int res = da_load();
     if (res == -1) {
         UART_write(uart, "Loading sd card: Card handle null\n", 35);
         return;
@@ -499,6 +499,23 @@ void Sensors_load_test() {
     else {
         UART_write(uart, "Loading sd card: Unknown error\n", 32);
         return;
+    }*/
+
+    switch (da_load()) {
+        case -1:
+            UART_write(uart, "Loading sd card: Card handle null\n", 35);
+            break;
+        case -2:
+            UART_write(uart, "Loading sd card: Status returned failure\n", 42);
+            break;
+        case -3:
+            UART_write(uart, "Loading sd card: Unable to read first sector\n", 46);
+            break;
+        case 1:
+            UART_write(uart, "Loading sd card: Success\n", 26);
+            break;
+        default:
+            UART_write(uart, "Loading sd card: Unknown error\n", 32);
     }
 }
 
