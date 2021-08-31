@@ -11,17 +11,24 @@
 //#define Board_SD0 0
 // =======================================================
 
+#define DISK_SUCCESS         1
+#define DISK_NULL_HANDLE    -1
+#define DISK_FAILED_INIT    -2
+#define DISK_FAILED_READ    -3
+#define DISK_FAILED_WRITE   -4
+#define TXN_MISS            -5
+
 struct SDCard
 {
-    char* txn_buffer; // all writing is done to txn buffer. Buffer is written when dirty
     int sector_size;
     int num_sectors;
     int write_pos;
+    SD_Handle sdHandle;
     int read_pos;
     int cur_sector_num;
     int dirty;
     int total_size;
-    SD_Handle sdHandle;
+    char* txn_buffer; // all writing is done to txn buffer. Buffer is written when dirty
 };
 
 //struct SDCard card;

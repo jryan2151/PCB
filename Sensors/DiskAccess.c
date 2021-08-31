@@ -10,7 +10,7 @@ struct SDCard card;
 
 int da_initialize() {
     SD_init();
-    return 0;
+    return DISK_SUCCESS;
 }
 
 int da_load() {
@@ -18,11 +18,11 @@ int da_load() {
     //int result = 0;
 
     card.sdHandle = SD_open(Board_SD0, NULL);
-    if (card.sdHandle == NULL) return -1;
+    if (card.sdHandle == NULL) return DISK_NULL_HANDLE;
 
 
     int_fast8_t status = SD_initialize(card.sdHandle);
-    if (status != SD_STATUS_SUCCESS) return -2;
+    if (status != SD_STATUS_SUCCESS) return DISK_FAILED_INIT;
 
     card.sector_size = SD_getSectorSize(card.sdHandle);
     card.num_sectors = SD_getNumSectors(card.sdHandle) - 1;
@@ -31,7 +31,7 @@ int da_load() {
 
     status = SD_read(card.sdHandle, card.txn_buffer, 0, 1);
     if (status != SD_STATUS_SUCCESS) {
-        return -3;
+        return DISK_FAILED_READ;
     }
 
 
@@ -56,14 +56,14 @@ int da_load() {
     card.cur_sector_num = -1;
     card.dirty = 0;
 
-    return 1;
+    return DISK_SUCCESS;
 }
 
 int da_clear() {
     card.write_pos = 0;
     card.read_pos = 0;
     memset(card.txn_buffer, 0, card.sector_size);
-    return 0;
+    return DISK_SUCCESS;
 }
 
 int da_close() {
@@ -76,42 +76,45 @@ int da_close() {
     memset(card.txn_buffer, 0, card.sector_size);
     System_sprintf(card.txn_buffer, "%d:%d", card.write_pos, card.read_pos);
     result = SD_write(card.sdHandle, card.txn_buffer, 0, 1);
-    if (result != SD_STATUS_SUCCESS) return -1;
+    if (result != SD_STATUS_SUCCESS) return DISK_FAILED_WRITE;
 
     free(card.txn_buffer);
     SD_close(card.sdHandle);
-    return 0;
+
+    return DISK_SUCCESS;
 }
 
 int da_get_sector(int sector) {
     int_fast8_t result;
-    if (card.sdHandle == NULL) return -4;
-    sector = sector % card.num_sectors + 1;
+    if (card.sdHandle == NULL) return DISK_NULL_HANDLE;
+    sector = sector % card.num_sectors;
 
     if (card.dirty != 0) {
         result = SD_write(card.sdHandle, card.txn_buffer, sector, 1);
-        if (result != SD_STATUS_SUCCESS) return -1;
+        if (result != SD_STATUS_SUCCESS) return DISK_FAILED_WRITE;
     }
 
-    System_sprintf(card.txn_buffer, "%d:%d", card.write_pos, card.read_pos);
+    /*System_sprintf(card.txn_buffer, "%d:%d", card.write_pos, card.read_pos);
     result = SD_write(card.sdHandle, card.txn_buffer, 0, 1);
-    if (result != SD_STATUS_SUCCESS) return -2;
+    if (result != SD_STATUS_SUCCESS) return DISK_FAILED_WRITE;*/
 
-    result = SD_read(card.sdHandle, card.txn_buffer, sector, 1);
-    if (result != SD_STATUS_SUCCESS) return -3;
+    result = SD_read(card.sdHandle, card.txn_buffer, sector + 1, 1);
+    if (result != SD_STATUS_SUCCESS) return DISK_FAILED_READ;
     card.cur_sector_num = sector;
 
-    return 0;
+    return DISK_SUCCESS;
 }
 
 int da_write(char* buffer, int size) {
+    if (card.sdHandle == NULL) return DISK_NULL_HANDLE;
     int result = 0;
     //if (size > card.total_size - da_get_data_size()) return -1;
     int totalWritten = 0;
     while (size > 0) {
         if (card.write_pos / card.sector_size != card.cur_sector_num) {
             result = da_get_sector(card.write_pos / card.sector_size);
-            if (result < 0) return -1;
+            if (result < 0) return result;
+            //result = TXN_MISS;
         }
         int nwrite = (size > card.sector_size - (card.write_pos % card.sector_size)) ? card.sector_size - (card.write_pos % card.sector_size) : size;
         memcpy(card.txn_buffer + (card.write_pos % card.sector_size), buffer + totalWritten, nwrite);
@@ -121,18 +124,19 @@ int da_write(char* buffer, int size) {
         totalWritten += nwrite;
         size -= nwrite;
     }
-
-    return 0;
+    return DISK_SUCCESS;
+    //return result;
 }
 
 int da_read(char* buffer, int size) {
+    if (card.sdHandle == NULL) return DISK_NULL_HANDLE;
     int result = 0;
     //if (size > da_get_data_size()) return -1;
     int totalRead = 0;
     while (size > 0) {
         if (card.read_pos / card.sector_size != card.cur_sector_num) {
             result = da_get_sector(card.read_pos / card.sector_size);
-            if (result < 0) return -1;
+            if (result < 0) return result;
         }
 
         int nread = (size > card.sector_size - (card.read_pos % card.sector_size)) ? card.sector_size - (card.read_pos % card.sector_size) : size;
@@ -143,7 +147,7 @@ int da_read(char* buffer, int size) {
         size -= nread;
     }
 
-    return size;
+    return DISK_SUCCESS;
 }
 
 int da_get_data_size() {

@@ -79,6 +79,7 @@
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Task.h>
 #include <xdc/runtime/Types.h>
+#include <xdc/runtime/Timestamp.h>
 #include <ti/drivers/SD.h>
 #include <xdc/runtime/System.h>
 
@@ -103,6 +104,7 @@ uint8_t status = 3;
 float avg = 0;
 uint16_t adcValue = 0;
 float gain = 0;
+char* myBuf;
 
 uint8_t DEVICENUM = 1;
 int channels = 1;
@@ -134,7 +136,7 @@ PIN_Config muxPinTable[] = {
 /* Task data */
 GPTimerCC26XX_Handle hMUXTimer;
 void MUXtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-        muxmod = muxidx % channels; //get remainder of muxidx for switch
+    muxmod = muxidx % channels; //get remainder of muxidx for switch
     switch(muxmod) {
         case 0: //2
             PIN_setOutputValue(muxPinHandle, IOID_28, 0); //E
@@ -249,7 +251,9 @@ void MUXtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
     }
+
     muxidx += 1; // increment counter
+
     if(muxidx == channels){
         muxidx = 0; //reset counter back to zero, if it equals the number of channels
     }
@@ -265,7 +269,8 @@ bool openDone = true;
 uint8_t counterDAC = 0;
 uint8_t counterDATA = 0;
 
-struct { //Used to store the signal2 amplitude (max is 4095)
+//Used to store the signal2 amplitude (max is 4095)
+struct {
     uint16_t ampAC : 12;
     uint16_t ampDC : 12;
 } signal2;
@@ -304,8 +309,8 @@ void uartCallback(UART_Handle handle, void *buf, size_t count) { return; }
  */
 //void *mainThread(void *arg0)
 //static void mainThread(UArg a0, UArg a1)
-void Sensors_init()
-{
+void Sensors_init() {
+    myBuf = (char*) malloc(64 * sizeof(char));
     // Initialize Variables
     signal2.ampAC = lastAmp;
 
@@ -401,21 +406,21 @@ void Sensors_init()
 
 
 
-  GPTimerCC26XX_Params paramsMUX;
-  GPTimerCC26XX_Params_init(&paramsMUX);
-  paramsMUX.width          = GPT_CONFIG_32BIT;
-  paramsMUX.mode           = GPT_MODE_PERIODIC_UP;
-  paramsMUX.debugStallMode = GPTimerCC26XX_DEBUG_STALL_OFF;
-  hMUXTimer = GPTimerCC26XX_open(CC2640R2_LAUNCHXL_GPTIMER1A, &paramsMUX); //Need timer 0A for ADCbuf
+    GPTimerCC26XX_Params paramsMUX;
+    GPTimerCC26XX_Params_init(&paramsMUX);
+    paramsMUX.width = GPT_CONFIG_32BIT;
+    paramsMUX.mode = GPT_MODE_PERIODIC_UP;
+    paramsMUX.debugStallMode = GPTimerCC26XX_DEBUG_STALL_OFF;
+    hMUXTimer = GPTimerCC26XX_open(CC2640R2_LAUNCHXL_GPTIMER1A, &paramsMUX); //Need timer 0A for ADCbuf
 
-  if(hMUXTimer == NULL) {
-    Task_exit();
-  }
+    if(hMUXTimer == NULL) {
+        Task_exit();
+    }
 
-  GPTimerCC26XX_Value loadValMUX = 48000000/MUXFREQ;
-  loadValMUX = loadValMUX - 1;
-  GPTimerCC26XX_setLoadValue(hMUXTimer, loadValMUX);
-  GPTimerCC26XX_registerInterrupt(hMUXTimer, MUXtimerCallback, GPT_INT_TIMEOUT);
+    GPTimerCC26XX_Value loadValMUX = 48000000 / MUXFREQ;
+    loadValMUX = loadValMUX - 1;
+    GPTimerCC26XX_setLoadValue(hMUXTimer, loadValMUX);
+    GPTimerCC26XX_registerInterrupt(hMUXTimer, MUXtimerCallback, GPT_INT_TIMEOUT);
 
 ////////////////////////////////////////////////////////////////// ADC/ UART //////////////////////////////////////////////////////////
     /* Create a UART with data processing off. */
@@ -423,10 +428,9 @@ void Sensors_init()
     UART_init();
     UART_Params_init(&uartParams);
     uartParams.writeDataMode = UART_DATA_BINARY;
-    uartParams.writeMode = /*UART_MODE_BLOCKING;*/UART_MODE_CALLBACK;
+    uartParams.writeMode = UART_MODE_CALLBACK;
     uartParams.writeCallback = uartCallback;
-    uartParams.baudRate = 230400;
-    //uartParams.baudRate = 115200;
+    uartParams.baudRate = 230400; // 115200;
     uart = UART_open(Board_UART0, &uartParams);
 
 
@@ -445,25 +449,33 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
     // Set length bytes
     if (result) {
         transferDone = true;
-    } else {
+    }
+    else {
         // Transaction failed, act accordingly...
         transferDone = false;
     }
 };
 
 void Sensors_write_test() {
-    UART_write(uart, "Write test\n", 12);
-    da_write("Simple Peripheral sd card write test. Please work for me======\n\0", 64);
+    int t1 = Timestamp_get32();
+    int res = da_write("Simple Peripheral sd card write test. Please work for me======\n\0", 64);
+    if (res == 1) {
+        int t2 = Timestamp_get32();
+
+        System_sprintf(myBuf, "Write in %d clock cycles\n\0", t2 - t1);
+        UART_write(uart, myBuf, strlen(myBuf));
+    }
+    else DA_get_status(res, "Writing Card");
+
 }
 
 void Sensors_read_test() {
-    char myBuf[64];
-    da_read(myBuf, 64);
-    UART_write(uart, myBuf, 64);
+    int res = da_read(myBuf, 64);
+    if (res == 1) UART_write(uart, myBuf, 64);
+    else DA_get_status(res, "Reading card");
 }
 
 void Sensors_size_test() {
-    char myBuf[64];
     System_sprintf(myBuf, "s size: %d num s: %d\n\0", da_get_sector_size(), da_get_num_sectors());
     UART_write(uart, myBuf, strlen(myBuf));
 }
@@ -475,53 +487,15 @@ void Sensors_pos_test() {
 }
 
 void Sensors_clear_test() {
-    UART_write(uart, "Clear test\n", 12);
-    da_clear();
+    DA_get_status(da_clear(), "Clearing card");
 }
 
 void Sensors_load_test() {
-    /*int res = da_load();
-    if (res == -1) {
-        UART_write(uart, "Loading sd card: Card handle null\n", 35);
-        return;
-    }
-    else if (res == -2) {
-        UART_write(uart, "Loading sd card: Status returned failure\n", 42);
-        return;
-    }
-    else if (res == -3) {
-        UART_write(uart, "Loading sd card: Unable to read first sector\n", 46);
-        return;
-    }
-    else if (res == 1) {
-        UART_write(uart, "Loading sd card: Success\n", 26);
-    }
-    else {
-        UART_write(uart, "Loading sd card: Unknown error\n", 32);
-        return;
-    }*/
-
-    switch (da_load()) {
-        case -1:
-            UART_write(uart, "Loading sd card: Card handle null\n", 35);
-            break;
-        case -2:
-            UART_write(uart, "Loading sd card: Status returned failure\n", 42);
-            break;
-        case -3:
-            UART_write(uart, "Loading sd card: Unable to read first sector\n", 46);
-            break;
-        case 1:
-            UART_write(uart, "Loading sd card: Success\n", 26);
-            break;
-        default:
-            UART_write(uart, "Loading sd card: Unknown error\n", 32);
-    }
+    DA_get_status(da_load(), "Loading card");
 }
 
 void Sensors_close_test() {
-    UART_write(uart, "Close test\n", 12);
-    da_close();
+    DA_get_status(da_close(), "Closing card");
 }
 
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
@@ -529,13 +503,14 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     //GPIO_toggle(Board_GPIO_LED0);
     //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_ON);
 
-    if (counterDAC%2==0){
+    if (counterDAC%2==0) {
         if (lastAmp[muxmod]==signal2.ampAC){
             // signal2 goes high
             // Do I2C transfer (in callback mode)
             txBuffer1[0] = signal2.ampAC >> 8; //hi byte
 	        txBuffer1[1] = signal2.ampAC; //lower 2 bytes
-        }else{ // Change to a new magnitude
+        }
+        else { // Change to a new magnitude
             signal2.ampAC = lastAmp[muxmod];
             signal2.ampDC = signal2.ampAC/2;
             txBuffer1[0] = signal2.ampAC >> 8; //hi byte
@@ -544,17 +519,21 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 	        txBuffer2[1] = signal2.ampDC; //lower 2 bytes
 	        I2C_transfer(I2Chandle, &i2cTrans2);
         }
-    }else{
+    }
+    else {
         // signal2 goes to zero
         // Do I2C transfer (in callback mode)
         //signal2.ampAC = 0;
         txBuffer1[0] = 0; //hi byte
 	   txBuffer1[1] = 0; //lower 2 bytes
     }
+
     I2C_transfer(I2Chandle, &i2cTrans1);
-    if(counterDAC == 2){
+
+    if (counterDAC == 2) {
         counterDAC = 0; //reset counter back to zero, if it equals the 2
-    }else{
+    }
+    else {
         //uint16_t     i;
         uint_fast16_t uartTxBufferOffset = 0;
         char uartTxBuffer[UARTBUFFERSIZE] = {0};
@@ -596,17 +575,19 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
         /* Display the data via UART */
 
-         UART_write(uart, uartTxBuffer, uartTxBufferOffset);
-         da_write(uartTxBuffer, uartTxBufferOffset);
+        UART_write(uart, uartTxBuffer, uartTxBufferOffset);
+        da_write(uartTxBuffer, uartTxBufferOffset);
 
         counterDATA += 1; //increment sample counter once finished
 
-        //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
+        // Check the magnitude of lastAmp[muxmod] and modulate it if necessary
         if (adcValue < ADCloLimit) {
             lastAmp[muxmod] += 10;
-        } else if (adcValue > ADChiLimit){
+        }
+        else if (adcValue > ADChiLimit){
             lastAmp[muxmod] -= 10;
         }
+
         if (adcValue < 100){
             lastAmp[muxmod] = minVOLT;
         }
@@ -618,21 +599,21 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     counterDAC += 1;
 
 //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
-        if (adcValue < ADCloLimit) {
-            lastAmp[muxmod] += 10;
-        } else if (adcValue > ADChiLimit){
-            lastAmp[muxmod] -= 10;
-        }
-        if (adcValue < 100){
-            lastAmp[muxmod] = minVOLT;
-        }
+    if (adcValue < ADCloLimit) {
+        lastAmp[muxmod] += 10;
+    }
+    else if (adcValue > ADChiLimit){
+        lastAmp[muxmod] -= 10;
+    }
 
-        if (gain < 4){
-            lastAmp[muxmod] = adcValue/5;
-        }
+    if (adcValue < 100){
+        lastAmp[muxmod] = minVOLT;
+    }
+
+    if (gain < 4){
+        lastAmp[muxmod] = adcValue/5;
+    }
     //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_OFF);
-
-
 
 };
 
@@ -644,5 +625,29 @@ void Sensors_start_timers() {
 void Sensors_stop_timers() {
     GPTimerCC26XX_stop(hMUXTimer);
     GPTimerCC26XX_stop(hDACTimer);
+}
+
+void DA_get_status(int status_code, char* message) {
+    switch (status_code) {
+        case DISK_NULL_HANDLE:
+            System_sprintf(myBuf, "%s: SD handle null\n\0", message);
+            break;
+        case DISK_FAILED_INIT:
+            System_sprintf(myBuf, "%s: Failed to initialize SD card\n\0", message);
+            break;
+        case DISK_FAILED_READ:
+            System_sprintf(myBuf, "%s: Sector reading error\n\0", message);
+            break;
+        case DISK_FAILED_WRITE:
+            System_sprintf(myBuf, "%s: Sector writing error\n\0", message);
+            break;
+        case DISK_SUCCESS:
+            System_sprintf(myBuf, "%s: Success\n\0", message);
+            break;
+        default:
+            System_sprintf(myBuf, "%s: Unknown status: %d\n\0", message, status_code);
+   }
+
+    UART_write(uart, myBuf, strlen(myBuf));
 }
 
