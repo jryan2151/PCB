@@ -61,7 +61,7 @@
 #include "bcomdef.h"
 #include "peripheral.h"
 #include "simple_peripheral.h"
-#include "Sensors/sensors.h"
+#include "Sensors/Storage.h"
 
 /* Header files required to enable instruction fetch cache */
 #include <inc/hw_memmap.h>
@@ -215,9 +215,7 @@ int main()
   /* Kick off profile - Priority 3 */
   GAPRole_createTask();
 
-  //Sensors_init();
-
-  //Sensors_createTask();
+  Storage_createTask();
   SimplePeripheral_createTask();
 
   /* enable interrupts and start SYS/BIOS */

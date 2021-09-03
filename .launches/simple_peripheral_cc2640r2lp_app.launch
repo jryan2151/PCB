@@ -4,7 +4,7 @@
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROGRAM.CC2640R2F.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M3_0" value="${build_artifact:simple_peripheral_cc2640r2lp_app}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROJECT.CC2640R2F.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M3_0" value="simple_peripheral_cc2640r2lp_app"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_TARGET_CONFIG" value="${target_config_active_default:simple_peripheral_cc2640r2lp_app}"/>
-<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.CC2640R2F.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M3_0" value="C:\Users\gkand\workspace_v10\simple_peripheral_cc2640r2lp_app\FlashROM_StackLibrary\simple_peripheral_cc2640r2lp_app.out"/>
+<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.CC2640R2F.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M3_0" value="C:\Users\jacek\workspace_v10\simple_peripheral_cc2640r2lp_app\FlashROM_StackLibrary\simple_peripheral_cc2640r2lp_app.out"/>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
 <listEntry value="/simple_peripheral_cc2640r2lp_app"/>
 </listAttribute>

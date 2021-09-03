@@ -504,6 +504,9 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
       case 5:
           Sensors_size_test();
           break;
+      case 6:
+          Sensors_timer_test();
+          break;
       default:
           Sensors_pos_test();
       };

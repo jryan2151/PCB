@@ -82,11 +82,13 @@
 #include <xdc/runtime/Timestamp.h>
 #include <ti/drivers/SD.h>
 #include <xdc/runtime/System.h>
+#include <ti/sysbios/hal/Hwi.h>
 
 
 /* Board Header file */
 #include "Board.h"
 #include "DiskAccess.h"
+#include "Storage.h"
 
 #include "sensors.h"
 
@@ -105,6 +107,7 @@ float avg = 0;
 uint16_t adcValue = 0;
 float gain = 0;
 char* myBuf;
+int clockticks = 0;
 
 uint8_t DEVICENUM = 1;
 int channels = 1;
@@ -294,7 +297,7 @@ int_fast16_t res;
 ADC_Handle adc;
 ADC_Params params;
 
-#define UARTBUFFERSIZE   ((20 * ADC_SAMPLE_COUNT) + 24)
+#define UARTBUFFERSIZE   64 //((20 * ADC_SAMPLE_COUNT) + 24)
 //double adcValue[ADC_SAMPLE_COUNT];
 int modBuffer[ADC_SAMPLE_COUNT];
 char uartTxBuffer[UARTBUFFERSIZE];
@@ -318,7 +321,6 @@ void Sensors_init() {
     I2C_init();
     ADC_init();
     GPIO_init();
-    da_initialize();
 
     ////////////////////////////////////////////// GPIO /////////////////////////////////////////
     /* Configure the LED pins */
@@ -441,7 +443,7 @@ void Sensors_init() {
         while(1);
     }
 
-    Sensors_load_test();
+    if (getStatus() == 0) UART_write(uart, "Loaded\n", 7);
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -498,13 +500,13 @@ void Sensors_close_test() {
     DA_get_status(da_close(), "Closing card");
 }
 
-void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-    // interrupt callback code goes here. Minimize processing in interrupt.
-    //GPIO_toggle(Board_GPIO_LED0);
-    //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_ON);
+void Sensors_timer_test() {
+    DACtimerCallback(NULL, NULL);
+}
 
-    if (counterDAC%2==0) {
-        if (lastAmp[muxmod]==signal2.ampAC){
+void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
+    if (counterDAC % 2 == 0) {
+        if (lastAmp[muxmod] == signal2.ampAC){
             // signal2 goes high
             // Do I2C transfer (in callback mode)
             txBuffer1[0] = signal2.ampAC >> 8; //hi byte
@@ -525,7 +527,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         // Do I2C transfer (in callback mode)
         //signal2.ampAC = 0;
         txBuffer1[0] = 0; //hi byte
-	   txBuffer1[1] = 0; //lower 2 bytes
+        txBuffer1[1] = 0; //lower 2 bytes
     }
 
     I2C_transfer(I2Chandle, &i2cTrans1);
@@ -534,68 +536,30 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         counterDAC = 0; //reset counter back to zero, if it equals the 2
     }
     else {
-        //uint16_t     i;
-        uint_fast16_t uartTxBufferOffset = 0;
-        char uartTxBuffer[UARTBUFFERSIZE] = {0};
 
         float amp = 0;
         uint8_t ampFactor = 3;
         int res1 = 0;
         uint32_t adcVal = 0;
 
-        if (uartTxBufferOffset < UARTBUFFERSIZE) {
-            amp = ADC_convertRawToMicroVolts(adc,lastAmp[muxmod])/ampFactor;
-
-            uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)counterDATA); // outputs sample number
-            uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)muxmod); // outputs channel number
-        }
-
+        amp = ADC_convertRawToMicroVolts(adc,lastAmp[muxmod])/ampFactor;
         res1 = ADC_convert(adc, &adcValue);
 
-        if (res1 == ADC_STATUS_SUCCESS) {
-            adcVal = ADC_convertRawToMicroVolts(adc,adcValue);
-        }
+        if (res1 == ADC_STATUS_SUCCESS) adcVal = ADC_convertRawToMicroVolts(adc,adcValue);
 
         avg = adcVal;
         gain = (float)avg/amp;
 
-        uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%.2f,",(float)gain); // outputs gain value
-
-        GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
-            /*
-        * Ensure we don't write outside the buffer.
-        * Append a newline after the data.
-        */
-        if (uartTxBufferOffset < UARTBUFFERSIZE) {
-            uartTxBuffer[uartTxBufferOffset++] = '\n';
+        if (Semaphore_pend(storage_buffer_mutex, 0)) {
+            storage_buffer_length = System_snprintf(storage_buffer, 64, "%u,%u,%u.%u\n", (uint8_t)counterDATA, (uint8_t)muxmod,(uint8_t)gain, (uint8_t)((gain - ((uint8_t)gain)) * 100));
+            UART_write(uart, storage_buffer, storage_buffer_length);
+            Semaphore_post(storage_buffer_mailbox);
         }
-        else {
-            uartTxBuffer[UARTBUFFERSIZE-1] = '\n';
-        }
-
-        /* Display the data via UART */
-
-        UART_write(uart, uartTxBuffer, uartTxBufferOffset);
-        da_write(uartTxBuffer, uartTxBufferOffset);
 
         counterDATA += 1; //increment sample counter once finished
 
-        // Check the magnitude of lastAmp[muxmod] and modulate it if necessary
-        if (adcValue < ADCloLimit) {
-            lastAmp[muxmod] += 10;
-        }
-        else if (adcValue > ADChiLimit){
-            lastAmp[muxmod] -= 10;
-        }
-
-        if (adcValue < 100){
-            lastAmp[muxmod] = minVOLT;
-        }
-
-        if (gain < 4){
-            lastAmp[muxmod] = adcValue/5;
-        }
     }
+
     counterDAC += 1;
 
 //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
@@ -613,8 +577,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     if (gain < 4){
         lastAmp[muxmod] = adcValue/5;
     }
-    //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_OFF);
-
 };
 
 void Sensors_start_timers() {
@@ -644,10 +606,12 @@ void DA_get_status(int status_code, char* message) {
         case DISK_SUCCESS:
             System_sprintf(myBuf, "%s: Success\n\0", message);
             break;
+        case DISK_LOCKED:
+            System_sprintf(myBuf, "%s: Disk locked\n\0", message);
+            break;
         default:
             System_sprintf(myBuf, "%s: Unknown status: %d\n\0", message, status_code);
    }
-
     UART_write(uart, myBuf, strlen(myBuf));
 }
 

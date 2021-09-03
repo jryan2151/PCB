@@ -4,6 +4,7 @@
 #include <ti/drivers/SD.h>
 #include <xdc/runtime/System.h>
 #include "Board.h"
+#include <semaphore.h>
 
 
 // comment out these lines below when putting on board
@@ -16,22 +17,12 @@
 #define DISK_FAILED_INIT    -2
 #define DISK_FAILED_READ    -3
 #define DISK_FAILED_WRITE   -4
-#define TXN_MISS            -5
+#define DISK_LOCKED         -5
 
-struct SDCard
-{
-    int sector_size;
-    int num_sectors;
-    int write_pos;
-    SD_Handle sdHandle;
-    int read_pos;
-    int cur_sector_num;
-    int dirty;
-    int total_size;
-    char* txn_buffer; // all writing is done to txn buffer. Buffer is written when dirty
-};
 
-//struct SDCard card;
+extern sem_t storage_mutex;
+
+// struct SDCard card;
 
 // initializes sd card
 int da_initialize();
