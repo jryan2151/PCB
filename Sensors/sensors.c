@@ -321,6 +321,7 @@ void Sensors_init() {
     I2C_init();
     ADC_init();
     GPIO_init();
+    da_initialize();
 
     ////////////////////////////////////////////// GPIO /////////////////////////////////////////
     /* Configure the LED pins */
@@ -443,7 +444,7 @@ void Sensors_init() {
         while(1);
     }
 
-    if (getStatus() == 0) UART_write(uart, "Loaded\n", 7);
+    DA_get_status(da_load(), "Loading Disk");
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -502,6 +503,10 @@ void Sensors_close_test() {
 
 void Sensors_timer_test() {
     DACtimerCallback(NULL, NULL);
+}
+
+void hello_world() {
+    UART_write(uart, "hello world\n", 12);
 }
 
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {

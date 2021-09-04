@@ -49,6 +49,10 @@ extern "C"
  * INCLUDES
  */
 
+#include <ti/sysbios/knl/Semaphore.h>
+extern Semaphore_Handle bacpac_channel_mutex;
+extern int remaining_data;
+
 /*********************************************************************
 * CONSTANTS
 */
@@ -58,7 +62,7 @@ extern "C"
 //  Characteristic defines
 #define BACPAC_SERVICE_CHANNEL_ID       0
 #define BACPAC_SERVICE_CHANNEL_UUID     0xBAC1
-#define BACPAC_SERVICE_CHANNEL_LEN      128
+#define BACPAC_SERVICE_CHANNEL_LEN      16
 
 //  Characteristic defines
 #define BACPAC_SERVICE_TRANSFERRING_ID   1
@@ -137,9 +141,7 @@ extern bStatus_t Bacpac_service_SetParameter(uint8_t param, uint16_t len, void *
 extern bStatus_t Bacpac_service_GetParameter(uint8_t param, uint16_t *len, void *value);
 
 
-short isExercising();
-short isTransferring();
-
+extern Semaphore_Handle bacpac_channel_mutex;
 /*********************************************************************
 *********************************************************************/
 

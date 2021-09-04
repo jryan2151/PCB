@@ -48,6 +48,7 @@
 
 #include "bacpac_service.h"
 #include "Sensors/sensors.h"
+#include "Sensors/DiskAccess.h"
 
 /*********************************************************************
  * MACROS
@@ -64,6 +65,8 @@
 /*********************************************************************
 * GLOBAL VARIABLES
 */
+
+Semaphore_Handle bacpac_channel_mutex;
 
 // bacpac_service Service UUID
 CONST uint8_t bacpac_serviceUUID[ATT_BT_UUID_SIZE] =
@@ -87,7 +90,7 @@ CONST uint8_t bacpac_service_ExercisingUUID[ATT_UUID_SIZE] =
   TI_BASE_UUID_128(BACPAC_SERVICE_EXERCISING_UUID)
 };
 
-
+int remaining_data;
 /*********************************************************************
  * LOCAL VARIABLES
  */
@@ -105,7 +108,7 @@ static CONST gattAttrType_t bacpac_serviceDecl = { ATT_BT_UUID_SIZE, bacpac_serv
 static uint8_t bacpac_service_ChannelProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
 
 // Characteristic "Channel" Value variable
-static uint8_t bacpac_service_ChannelVal[BACPAC_SERVICE_CHANNEL_LEN] = { 'I',' ','J','a','c','e',',',' ', 'h', 'a', 'v','i','n','g',' ','b','e','e','n',' ', 'b', 'o','r', 'n', ' ', 'o', 'f', ' ', 'g', 'o', 'o', '-', 'I',' ','J','a','c','e',',',' ', 'h', 'a', 'v','i','n','g',' ','b','e','e','n',' ', 'b', 'o','r', 'n', ' ', 'o', 'f', ' ', 'g', 'o', 'o', '-', 'I',' ','J','a','c','e',',',' ', 'h', 'a', 'v','i','n','g',' ','b','e','e','n',' ', 'b', 'o','r', 'n', ' ', 'o', 'f', ' ', 'g', 'o', 'o', '-', 'I',' ','J','a','c','e',',',' ', 'h', 'a', 'v','i','n','g',' ','b','e','e','n',' ', 'b', 'o','r', 'n', ' ', 'o', 'f', ' ', 'g', 'o', 'o', 0  };
+static uint8_t bacpac_service_ChannelVal[BACPAC_SERVICE_CHANNEL_LEN] = { 0 };
 
 // Characteristic "Channel" description
 static uint8 bacpac_service_ChannelDesc[8] = "Channel";
@@ -138,7 +141,7 @@ static uint8 bacpac_service_ExercisingDesc[11] = "Exercising";
 * Profile Attributes - Table
 */
 
-static gattAttribute_t bacpac_serviceAttrTbl[] =
+static gattAttribute_t bacpac_serviceAttrTbl[11] =
 {
   // bacpac_service Service Declaration
   {
@@ -253,11 +256,24 @@ extern bStatus_t Bacpac_service_AddService( uint8_t rspTaskId )
 {
   uint8_t status;
 
-  // Register GATT attribute list and CBs with GATT Server App
-  status = GATTServApp_RegisterService( bacpac_serviceAttrTbl,
-                                        GATT_NUM_ATTRS( bacpac_serviceAttrTbl ),
-                                        GATT_MAX_ENCRYPT_KEY_SIZE,
-                                        &bacpac_serviceCBs );
+  bacpac_service_ChannelConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
+   if ( bacpac_service_ChannelConfig == NULL )
+   {
+     return ( bleMemAllocError );
+   }
+
+   // Initialize Client Characteristic Configuration attributes
+   GATTServApp_InitCharCfg( LINKDB_CONNHANDLE_INVALID, bacpac_service_ChannelConfig );
+
+
+   // Register GATT attribute list and CBs with GATT Server App
+    status = GATTServApp_RegisterService( bacpac_serviceAttrTbl,
+                                       GATT_NUM_ATTRS( bacpac_serviceAttrTbl ),
+                                       GATT_MAX_ENCRYPT_KEY_SIZE,
+                                       &bacpac_serviceCBs );
+
+
+
 
   return ( status );
 }
@@ -506,6 +522,10 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
           break;
       case 6:
           Sensors_timer_test();
+          break;
+      case 0x07:
+          remaining_data = -1;
+          Semaphore_post(bacpac_channel_mutex);
           break;
       default:
           Sensors_pos_test();

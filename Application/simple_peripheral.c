@@ -84,6 +84,8 @@
 
 #include "simple_peripheral.h"
 #include "Sensors/sensors.h"
+#include "Sensors/DiskAccess.h"
+#include <xdc/runtime/System.h>
 
 /*********************************************************************
  * CONSTANTS
@@ -140,7 +142,7 @@
 #define SBP_TASK_PRIORITY                     1
 
 #ifndef SBP_TASK_STACK_SIZE
-#define SBP_TASK_STACK_SIZE                   1024 //644
+#define SBP_TASK_STACK_SIZE                   832//644
 #endif
 
 // Application events
@@ -187,6 +189,9 @@ typedef struct
 
 // Display Interface
 Display_Handle dispHandle = NULL;
+//Semaphore_Handle bacpac_channel_mutex;
+Semaphore_Struct bacpac_channel_mutex_struct;
+char bleChannelBuf[BACPAC_SERVICE_CHANNEL_LEN];
 
 /*********************************************************************
  * LOCAL VARIABLES
@@ -471,6 +476,13 @@ static void SimplePeripheral_init(void)
 
 
   Sensors_init();
+
+    Semaphore_Params channelParams;
+    Semaphore_Params_init(&channelParams);
+    channelParams.mode = Semaphore_Mode_BINARY;
+    Semaphore_construct(&bacpac_channel_mutex_struct, 0, &channelParams);
+    bacpac_channel_mutex = Semaphore_handle(&bacpac_channel_mutex_struct);
+
   // Create an RTOS queue for message from profile to be sent to app.
   appMsgQueue = Util_constructQueue(&appMsg);
 
@@ -669,6 +681,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     events = Event_pend(syncEvent, Event_Id_NONE, SBP_ALL_EVENTS,
                         ICALL_TIMEOUT_FOREVER);
 
+
     if (events)
     {
       ICall_EntityID dest;
@@ -722,6 +735,24 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
         // Perform periodic application task
         SimplePeripheral_performPeriodicTask();
       }
+    }
+
+    if (Semaphore_pend(bacpac_channel_mutex, 0)) {
+       if (remaining_data == -1) {
+           memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
+           remaining_data = da_get_data_size();
+           System_sprintf(bleChannelBuf, "%d", remaining_data);
+           Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
+           Semaphore_post(bacpac_channel_mutex);
+       }
+       else if (remaining_data > 0) {
+           memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
+           remaining_data -= (BACPAC_SERVICE_CHANNEL_LEN % remaining_data);
+           da_read(bleChannelBuf, (BACPAC_SERVICE_CHANNEL_LEN % remaining_data));
+           Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
+           Semaphore_post(bacpac_channel_mutex);
+       }
+       Task_sleep(10);
     }
   }
 
