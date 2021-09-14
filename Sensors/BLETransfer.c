@@ -12,38 +12,28 @@
 #ifndef BLE_TRANSFER_TASK_STACK_SIZE
 #define BLE_TRANSFER_TASK_STACK_SIZE     300
 #endif
-/*
+
 Task_Struct BLETransferTask;
 Char BLETransferTaskStack[BLE_TRANSFER_TASK_STACK_SIZE];
 
 //Semaphore_Handle bacpac_channel_mutex;
-Semaphore_Struct bacpac_channel_mutex_struct;
-char bleChannelBuf[BACPAC_SERVICE_CHANNEL_LEN];
+//Semaphore_Struct bacpac_channel_mutex_struct;
+//char bleChannelBuf[BACPAC_SERVICE_CHANNEL_LEN];
 
 static void BLE_transfer_taskFxn(UArg a0, UArg a1) {
     BLE_transfer_init();
 
-   for (;;) {
-       Semaphore_pend(bacpac_channel_mutex, BIOS_WAIT_FOREVER);
-
-       if (remaining_data == -1) {
-           memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
-           remaining_data = da_get_data_size();
-           System_sprintf(bleChannelBuf, "%d", remaining_data);
-           Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
-       }
-
-   }
+   Task_sleep(BIOS_WAIT_FOREVER);
 }
 
 void BLE_transfer_init() {
-
+/*
     Semaphore_Params channelParams;
     Semaphore_Params_init(&channelParams);
     channelParams.mode = Semaphore_Mode_BINARY;
     Semaphore_construct(&bacpac_channel_mutex_struct, 0, &channelParams);
     bacpac_channel_mutex = Semaphore_handle(&bacpac_channel_mutex_struct);
-
+*/
 }
 
 void BLE_transfer_createTask(void) {
@@ -59,6 +49,6 @@ void BLE_transfer_createTask(void) {
     Task_construct(&BLETransferTask, BLE_transfer_taskFxn, &taskParams, NULL);
 
 }
-*/
+
 
 

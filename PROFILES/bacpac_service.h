@@ -62,7 +62,7 @@ extern int remaining_data;
 //  Characteristic defines
 #define BACPAC_SERVICE_CHANNEL_ID       0
 #define BACPAC_SERVICE_CHANNEL_UUID     0xBAC1
-#define BACPAC_SERVICE_CHANNEL_LEN      16
+#define BACPAC_SERVICE_CHANNEL_LEN      20
 
 //  Characteristic defines
 #define BACPAC_SERVICE_TRANSFERRING_ID   1

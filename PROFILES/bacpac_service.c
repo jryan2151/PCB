@@ -421,6 +421,8 @@ if ( ! memcmp(pAttr->type.uuid, bacpac_service_ChannelUUID, pAttr->type.len) )
     {
       *pLen = MIN(maxLen, BACPAC_SERVICE_CHANNEL_LEN - offset);  // Transmit as much as possible
       memcpy(pValue, pAttr->pValue + offset, *pLen);
+      //hello_world();
+      //if (remaining_data > 0) Semaphore_post(bacpac_channel_mutex);
     }
   }
   // See if request is regarding the Transferring Characteristic Value

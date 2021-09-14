@@ -62,7 +62,7 @@
 #include "peripheral.h"
 #include "simple_peripheral.h"
 #include "Sensors/Storage.h"
-//#include "Sensors/BLETransfer.h"
+#include "Sensors/BLETransfer.h"
 
 /* Header files required to enable instruction fetch cache */
 #include <inc/hw_memmap.h>
@@ -217,7 +217,7 @@ int main()
   GAPRole_createTask();
 
   Storage_createTask();
-  //BLE_transfer_createTask();
+  BLE_transfer_createTask();
   SimplePeripheral_createTask();
 
   /* enable interrupts and start SYS/BIOS */
