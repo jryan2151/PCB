@@ -696,7 +696,8 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                  Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
                  Semaphore_post(bacpac_channel_mutex);
              }
-             Task_sleep(1);
+             Task_sleep(7000);
+             continue;
           }
 
     uint32_t events;

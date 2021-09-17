@@ -1,4 +1,4 @@
-#include <ti/sysbios/knl/Semaphore.h>
+/*#include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/BIOS.h>
 
@@ -33,7 +33,7 @@ void BLE_transfer_init() {
     channelParams.mode = Semaphore_Mode_BINARY;
     Semaphore_construct(&bacpac_channel_mutex_struct, 0, &channelParams);
     bacpac_channel_mutex = Semaphore_handle(&bacpac_channel_mutex_struct);
-*/
+
 }
 
 void BLE_transfer_createTask(void) {
@@ -49,6 +49,6 @@ void BLE_transfer_createTask(void) {
     Task_construct(&BLETransferTask, BLE_transfer_taskFxn, &taskParams, NULL);
 
 }
-
+*/
 
 
