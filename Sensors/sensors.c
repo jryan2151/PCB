@@ -58,7 +58,8 @@
 
 
  */
-
+//#include <unistd.h> ???
+//#include <stdbool.h> ???
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -106,17 +107,21 @@ uint8_t status = 3;
 float avg = 0;
 uint16_t adcValue = 0;
 float gain = 0;
+float impedance = 0; // ???
 char* myBuf;
 int clockticks = 0;
+uint_fast16_t uartTxBufferOffset = 0; // ???
 
 uint8_t DEVICENUM = 1;
-int channels = 1;
+int channels = 1; //change to const in channels = 16; ???
 int lastAmp[1] = {0}; //initialize to the value you want to start the signal2 at (must be as long as channel)
-static int MUXFREQ = 200; //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
+static int MUXFREQ = 200;  //600 (maybe not good for bluetooth so probably don't change ??? //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
+// ??? uint8_t sensorValues[channels] = {100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100}; //initial tap value for each sensor
+// ??? int lastAmp[channels] = {500,500,500,500,500,500,500,500}; //initialize to the value you want to start the signal at (must be as long as channel)
 #define ADC_SAMPLE_COUNT    (1) //Number of samples to read each time we call the callback function (how many samples per row on output)
 #define ADCMULTIPLE         (1) //How many times to call the ADC within one mux switch (total samples per switch will equal ADCMULTIPLE*ADC_SAMPLE_COUNT)
 #define ADChiLimit          3000 //raw value that will be the threshold
-#define ADCloLimit          500 //raw value that will be the threshold
+#define ADCloLimit          200 // ??? 200 //raw value that will be the threshold
 #define minVOLT             (80) //
 
  /* Starting sector to write/read to */
@@ -139,8 +144,10 @@ PIN_Config muxPinTable[] = {
 /* Task data */
 GPTimerCC26XX_Handle hMUXTimer;
 void MUXtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-    muxmod = muxidx % channels; //get remainder of muxidx for switch
-    switch(muxmod) {
+    // muxmod = muxidx % channels; //get remainder of muxidx for switch // ??? Commented out in Joseph's code
+    switch(muxidx) // ??? Switched to muxidx from muxmod
+
+    {
         case 0: //2
             PIN_setOutputValue(muxPinHandle, IOID_28, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0); //S3
@@ -267,6 +274,8 @@ uint8_t rxBuffer1[0];            // Receive buffer
 uint8_t txBuffer1[2];            // Transmit buffer
 uint8_t rxBuffer2[0];            // Receive buffer
 uint8_t txBuffer2[2];            // Transmit buffer
+// ??? uint8_t rxBuffer3[1];          // Receive buffer
+// ??? uint8_t txBuffer3[2];          // Transmit buffer
 bool transferDone = false;
 bool openDone = true;
 uint8_t counterDAC = 0;
@@ -289,18 +298,19 @@ I2C_Handle I2Chandle;
 I2C_Params I2Cparams;
 I2C_Transaction i2cTrans1;
 I2C_Transaction i2cTrans2;
+// ??? I2C_Transaction i2cTrans3;
 
 ///////////////////////////////////// ADC/ Display Preamble /////////////////////////////////
 /* ADC Global Variables */
 uint16_t trigger = 0;
-int_fast16_t res;
+int_fast16_t res; // ??? in Joseph's code this is commented out
 ADC_Handle adc;
 ADC_Params params;
 
-#define UARTBUFFERSIZE   64 //((20 * ADC_SAMPLE_COUNT) + 24)
+#define UARTBUFFERSIZE   64 //((20 * ADC_SAMPLE_COUNT) + 24) // ??? The previous was not commented out in Joseph's code
 //double adcValue[ADC_SAMPLE_COUNT];
 int modBuffer[ADC_SAMPLE_COUNT];
-char uartTxBuffer[UARTBUFFERSIZE];
+char uartTxBuffer[UARTBUFFERSIZE]; // ??? ...SIZE] = {0};
 
 UART_Handle uart;
 
@@ -310,7 +320,7 @@ void uartCallback(UART_Handle handle, void *buf, size_t count) { return; }
 /*
  *  ======== mainThread ========
  */
-//void *mainThread(void *arg0)
+//void *mainThread(void *arg0) // ??? OLD NAME (DONT REPLACE)
 //static void mainThread(UArg a0, UArg a1)
 void Sensors_init() {
     myBuf = (char*) malloc(64 * sizeof(char));
@@ -322,6 +332,7 @@ void Sensors_init() {
     ADC_init();
     GPIO_init();
     da_initialize();
+
 
     ////////////////////////////////////////////// GPIO /////////////////////////////////////////
     /* Configure the LED pins */
@@ -361,6 +372,14 @@ void Sensors_init() {
     i2cTrans2.readCount    = 0;
     i2cTrans2.slaveAddress = 0x4D; //hex converter: https://www.cs.princeton.edu/courses/archive/fall07/cos109/bc.html
 
+    /*
+    // Initialize master I2C transaction structure
+        i2cTrans3.writeBuf     = txBuffer3; //DC Signal
+        i2cTrans3.writeCount   = 2;
+        i2cTrans3.readBuf      = NULL;
+        i2cTrans3.readCount    = 0;
+        i2cTrans3.slaveAddress = 0x2C; //hex converter: https://www.cs.princeton.edu/courses/archive/fall07/cos109/bc.html
+       */ // ??? (WHOLE THING for i2cTrans3)
 
     ////////////////////////////////////////////// GPTimer for DAC //////////////////////////////////////////
     GPTimerCC26XX_Params paramsDAC;
@@ -381,6 +400,9 @@ void Sensors_init() {
 
     GPTimerCC26XX_setLoadValue(hDACTimer, loadValDAC);
     GPTimerCC26XX_registerInterrupt(hDACTimer, DACtimerCallback, GPT_INT_TIMEOUT);
+
+    // ??? GPTimerCC26XX_start(hDACTimer); (Probably don't include because is called in a function (Sensors_start_timers)
+
     // Open I2C
     I2Chandle = I2C_open(Board_I2C0, &I2Cparams);
 
@@ -389,7 +411,7 @@ void Sensors_init() {
         openDone = false;
         while (1);
     }
-
+    /*
     signal2.ampAC = lastAmp[muxmod];
     signal2.ampDC = signal2.ampAC/2;
     txBuffer1[0] = signal2.ampAC >> 8; //hi byte
@@ -398,6 +420,7 @@ void Sensors_init() {
 	txBuffer2[1] = signal2.ampDC; //lower 2 bytes
     I2C_transfer(I2Chandle, &i2cTrans1);
     I2C_transfer(I2Chandle, &i2cTrans2);
+    */ // ??? Commented out of Joseph's code
 
 ////////////////////////////////////////////////////////////////// MUX //////////////////////////////////////////////////////////
     muxPinHandle = PIN_open(&muxPinState, muxPinTable);
@@ -405,7 +428,7 @@ void Sensors_init() {
         /* Error initializing mux output pins */
         while(1);
     }
-    PIN_setOutputValue(muxPinHandle, IOID_28, 0);
+    PIN_setOutputValue(muxPinHandle, IOID_21, 0); // ??? IOID_21
 
 
 
@@ -433,7 +456,7 @@ void Sensors_init() {
     uartParams.writeDataMode = UART_DATA_BINARY;
     uartParams.writeMode = UART_MODE_CALLBACK;
     uartParams.writeCallback = uartCallback;
-    uartParams.baudRate = 230400; // 115200;
+    uartParams.baudRate = 460800; // 115200; // 460800
     uart = UART_open(Board_UART0, &uartParams);
 
 
@@ -444,7 +467,33 @@ void Sensors_init() {
         while(1);
     }
 
+        // Turn on gain to high once
+        Signal.ampAC = lastAmp[muxmod]; //Signal goes high, i.e. positive
+        Signal.ampDC = Signal.ampAC/2;
+        txBuffer1[0] = Signal.ampAC >> 8; //hi byte
+        txBuffer1[1] = Signal.ampAC; //lower 2 bytes
+    txBuffer2[0] = Signal.ampDC >> 8; //hi byte
+    txBuffer2[1] = Signal.ampDC; //lower 2 bytes
+    I2C_transfer(I2Chandle, &i2cTrans1);
+        I2C_transfer(I2Chandle, &i2cTrans2);
+
+        // set the mux to 0
+        PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+        PIN_setOutputValue(muxPinHandle, IOID_22, 0); //S3
+        PIN_setOutputValue(muxPinHandle, IOID_23, 0); //S2
+        PIN_setOutputValue(muxPinHandle, IOID_12, 0); //S1
+        PIN_setOutputValue(muxPinHandle, IOID_15, 0); //S0
+
+
     DA_get_status(da_load(), "Loading Disk");
+
+    /*
+    ////////////////////////////////////////// Forever While Loop /////////////////////////////////////////////
+        while(1) {
+            Task_sleep(BIOS_WAIT_FOREVER);
+            //sleep(1000);
+
+             */ // This while loop is probably not needed
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -510,7 +559,23 @@ void hello_world() {
 }
 
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-    if (counterDAC % 2 == 0) {
+    // interrupt callback code goes here. Minimize processing in interrupt.
+    //GPIO_toggle(Board_GPIO_LED0);
+    //GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_ON);
+
+    if (counterDAC == 0) // ??? JACE's had counterDAC % 2 == 0 /////////////// CASE 2 /////////
+        {
+
+        ////////////////// MUX STUFF ///////////////////////
+               muxmod = muxidx % channels; //get remainder of muxidx for switch
+               muxidx += 1; // increment counter note: this happens after we have already set pot and sensor in case 2
+               if(muxidx == channels){
+                   muxidx = 0; //reset counter back to zero, if it equals the number of channels
+               }
+
+        ////////////////////////////////////////////////////
+
+        /*
         if (lastAmp[muxmod] == signal2.ampAC){
             // signal2 goes high
             // Do I2C transfer (in callback mode)
@@ -525,21 +590,314 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 	        txBuffer2[0] = signal2.ampDC >> 8; //hi byte
 	        txBuffer2[1] = signal2.ampDC; //lower 2 bytes
 	        I2C_transfer(I2Chandle, &i2cTrans2);
+        }*/ // ??? (From Jace's code (unnesessary? probably)
+
+        uartTxBufferOffset = 0; // ??? lines 594 to 652 added
+        //char uartTxBuffer[UARTBUFFERSIZE] = {0};
+
+        float amp; uint8_t ampFactor = 3;
+
+        //Sets up UART buffer
+        if (uartTxBufferOffset < UARTBUFFERSIZE) {
+            //uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset, UARTBUFFERSIZE - uartTxBufferOffset, "\r\nChannel: ");
+            amp = ADC_convertRawToMicroVolts(adc,lastAmp[0])/ampFactor;
+            //amp = lastAmp[muxmod]/ampFactor;
+
+            /*
+            uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)counterDATA); // outputs sample number
+            uartTxBufferOffset += snprintf(uartTxBuffer + uartTxBufferOffset,UARTBUFFERSIZE - uartTxBufferOffset, "%u,",(uint8_t)muxmod); // outputs channel number
+            */
+            // ??? Part of Joseph's code. Potentially do System_snprintf or keep commented out because this is done in 655, 656 maybe)
         }
+
+        int res1; uint32_t adcVal;
+        res1 = ADC_convert(adc, &adcValue);
+        if (res1 == ADC_STATUS_SUCCESS) {
+            adcVal = ADC_convertRawToMicroVolts(adc,adcValue);
+        }
+        avg = adcVal;
+        gain = (float)adcVal/amp;
+
+
+        /*if (gain == 5.92)
+        {
+            impedance = 10000;
+        }
+        else if (sensorValues[muxmod] == 5)
+        {
+            impedance = abs((-180.4 * gain + 2856)/(gain + -5.92));
+        }
+        else if (sensorValues[muxmod] == 15)
+        {
+            impedance = abs((-180.4 * gain + 5243)/(gain + -5.92));
+        }
+        else if (sensorValues[muxmod] == 35)
+        {
+            impedance = abs((-180.4 * gain + 9822)/(gain + -5.92));
+        }
+        else if (sensorValues[muxmod] == 60)
+        {
+            impedance = abs((-180.4 * gain + 15690)/(gain + -5.92));
+        }
+        else if (sensorValues[muxmod] == 100)
+        {
+            impedance = abs((-180.4 * gain + 24510)/(gain + -5.92));
+        }
+        else if (sensorValues[muxmod] == 150)
+        {
+            impedance = abs((-180.4 * gain + 36510)/(gain + -5.92));
+        }
+        if (impedance > 9999.99)
+        {
+            impedance = 9999.99;
+        }*/
+
+        if (Semaphore_pend(storage_buffer_mutex, 0)) {
+                    storage_buffer_length = System_snprintf(storage_buffer, 64, "%u,%u,%u.%u\n", (uint8_t)counterDATA, (uint8_t)muxmod,(uint8_t)gain, (uint8_t)((gain - ((uint8_t)gain)) * 100));
+                    // ??? ^^^ Needs to be changed with witchcraft I don't have (Need to be thinking of how many bits are available to write tap value and adc value)
+                    UART_write(uart, storage_buffer, storage_buffer_length);
+                    Semaphore_post(storage_buffer_mailbox);
+                }
+
+        GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
+                    /*
+                * Ensure we don't write outside the buffer.
+                * Append a newline after the data.*/ // ??? inserted from Joseph's code but I don't think it will mess anything up
+        /*
+        if (uartTxBufferOffset < UARTBUFFERSIZE) {
+           uartTxBuffer[uartTxBufferOffset++] = '\n';
+        }
+        else {
+           uartTxBuffer[UARTBUFFERSIZE-1] = '\n'; */
+        } // ??? added lines 666-671 from Joseph's code (not sure if they are nessessary but I'll leave them)
+
+
+
+               //Changes tap value if necissary
+               /*if (gain < lowCuts[currentTap[muxmod]])
+               {
+                   currentTap[muxmod]++;
+                   sensorValues[muxmod] = taps[currentTap[muxmod]];
+               }
+               else if (gain > highCuts[currentTap[muxmod]])
+               {
+                   currentTap[muxmod]--;
+                   sensorValues[muxmod] = taps[currentTap[muxmod]];
+               }
+               if (currentTap[muxmod] > 6)
+               {
+                   currentTap[muxmod] = 6;
+                   sensorValues[muxmod] = taps[currentTap[muxmod]];
+               }
+               else if (currentTap[muxmod] < 1)
+               {
+                   currentTap[muxmod] = 1;
+                   sensorValues[muxmod] = taps[currentTap[muxmod]];
+               }
+               if (currentTap[muxmod] > 5)  //If we're stuck 'overflowing' the InAmp, then try to reset it back to a low tap value
+               {
+                   if (gain < 6.2)
+                   {
+                       currentTap[muxmod] = 1;
+                       sensorValues[muxmod] = taps[currentTap[muxmod]];
+                   }
+              }*/
+
+           /*
+               int_fast8_t   result;
+               uint_fast32_t cardCapacity;
+               uint_fast32_t totalSectors;
+               uint_fast32_t sectorSize;
+               uint_fast32_t sectors;
+               int           i;
+               SD_Handle     sdHandle;
+               */
+
+                   /*********Write to SD card*******/
+               /*
+               sdHandle = SD_open(Board_SD0, NULL);
+               result = SD_initialize(sdHandle);
+               totalSectors = SD_getNumSectors(sdHandle);
+               sectorSize = SD_getSectorSize(sdHandle);
+               cardCapacity = (totalSectors / BYTESPERKILOBYTE) * sectorSize;
+               result = SD_write(sdHandle, uartTxBuffer, STARTINGSECTOR, sectors);
+               //result = SD_read(sdHandle, cpy_buff, STARTINGSECTOR, sectors);
+               SD_close(sdHandle);*/
+
+                   //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
+                   //if (adcValue < ADCloLimit) {
+                   //    lastAmp[muxmod] += 10;
+                   //} else if (adcValue > ADChiLimit){
+                   //    lastAmp[muxmod] -= 10;
+                   //}
+
+                   /*txBuffer3[0] = 0;  // Sets the pot to tap 1;
+                   txBuffer3[1] = 1;
+                   I2C_transfer(I2Chandle, &i2cTrans3);*/
+
+
+
+          counterDAC++; //increments counter
+
+          counterDATA += 1; //increment sample counter once finished
     }
+    /*
     else {
         // signal2 goes to zero
         // Do I2C transfer (in callback mode)
         //signal2.ampAC = 0;
         txBuffer1[0] = 0; //hi byte
         txBuffer1[1] = 0; //lower 2 bytes
-    }
+    } */ // ??? From Jace's code (unnecessary? Probably)
 
-    I2C_transfer(I2Chandle, &i2cTrans1);
 
-    if (counterDAC == 2) {
-        counterDAC = 0; //reset counter back to zero, if it equals the 2
-    }
+
+    // I2C_transfer(I2Chandle, &i2cTrans1); ??? Part of Jace's code (N/A)
+
+    else if (counterDAC == 1) ///////////////////////////////////// CASE 3 ////////////////////////////////////
+    {
+        counterDAC = 0; //reset counter back to zero
+
+        //muxmod = muxidx % channels; //get remainder of muxidx for switch
+        //switches the mux
+        switch(muxidx) {
+            case 0: //2
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0); //S3
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0); //S2
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0); //S1
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0); //S0
+                break;
+            case 1: //4
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 2: //6
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 3: //8
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 4: //10
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 5: //12
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 6: //14
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 7: //16
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 15: //15
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 14: //13
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 13: //11
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 12: //9
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 11: //7
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 10: //5
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 0);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+            case 9: //3
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 0);
+                break;
+            case 8: //1
+                PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
+                PIN_setOutputValue(muxPinHandle, IOID_22, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_23, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_12, 1);
+                PIN_setOutputValue(muxPinHandle, IOID_15, 1);
+                break;
+        }
+
+        // ??? There's a function already created to do all this ^^^ (w/ minor differences) but idk how to set it up
+
+         // Display the data via UART
+        UART_write(uart, uartTxBuffer, uartTxBufferOffset); // ??? Don't use-- use semaphore lines
+        /*//Set pot to tap - 1
+        txBuffer3[0] = 0;
+        txBuffer3[1] = sensorValues[muxidx] - 1;
+        I2C_transfer(I2Chandle, &i2cTrans3);
+
+        //Sleep to allow time for inamp to stabalize
+        usleep(300);
+
+        //Set pot value
+        txBuffer3[0] = 0;
+        txBuffer3[1] = sensorValues[muxidx];
+        I2C_transfer(I2Chandle, &i2cTrans3);*/
+
+
+        counterDAC = 0; // Reset counter to case 0
+
+
+    /*
+     }
     else {
 
         float amp = 0;
@@ -561,12 +919,15 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             Semaphore_post(storage_buffer_mailbox);
         }
 
+
         counterDATA += 1; //increment sample counter once finished
 
     }
 
     counterDAC += 1;
 
+    */ // ??? Part of Jace's code that I utilized to create parts of case 2
+/*
 //Check the magnitude of lastAmp[muxmod] and modulate it if necessary
     if (adcValue < ADCloLimit) {
         lastAmp[muxmod] += 10;
@@ -582,15 +943,16 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     if (gain < 4){
         lastAmp[muxmod] = adcValue/5;
     }
+    */ // From Jace's code (unnecessary? yes)
 };
 
 void Sensors_start_timers() {
-    GPTimerCC26XX_start(hMUXTimer);
+    //GPTimerCC26XX_start(hMUXTimer);
     GPTimerCC26XX_start(hDACTimer);
 }
 
 void Sensors_stop_timers() {
-    GPTimerCC26XX_stop(hMUXTimer);
+    //GPTimerCC26XX_stop(hMUXTimer);
     GPTimerCC26XX_stop(hDACTimer);
 }
 
