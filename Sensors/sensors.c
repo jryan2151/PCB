@@ -509,6 +509,10 @@ void hello_world() {
     UART_write(uart, "hello world\n", 12);
 }
 
+void notifications_sent() {
+    UART_write(uart, "sent\n", 6);
+}
+
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
     if (counterDAC % 2 == 0) {
         if (lastAmp[muxmod] == signal2.ampAC){

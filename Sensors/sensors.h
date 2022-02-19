@@ -18,6 +18,7 @@ void Sensors_timer_test();
 void DA_get_status(int status_code, char* message);
 
 void hello_world();
+void notifications_sent();
 
 
 #endif

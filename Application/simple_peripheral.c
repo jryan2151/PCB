@@ -673,8 +673,15 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
 
   for (;;)
   {
+      ICall_heapStats_t stats;
+      ICall_getHeapStats(&stats);
+      if (stats.totalFreeSize < 512) {
+          Task_sleep(7000);
+          continue;
+      }
 
       if (Semaphore_pend(bacpac_channel_mutex, 0)) {
+
              if (remaining_data == -1) {
                  memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
                  remaining_data = da_get_data_size();
@@ -696,7 +703,9 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                  Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
                  Semaphore_post(bacpac_channel_mutex);
              }
-             Task_sleep(7000);
+             else notifications_sent();
+
+             Task_sleep(700);
              continue;
           }
 
