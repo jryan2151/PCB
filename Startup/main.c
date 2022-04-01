@@ -216,6 +216,7 @@ int main()
   /* Kick off profile - Priority 3 */
   GAPRole_createTask();
 
+
   Storage_createTask();
   //BLE_transfer_createTask();
   SimplePeripheral_createTask();

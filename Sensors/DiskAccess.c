@@ -13,11 +13,14 @@ static int dirty;
 static int total_size;
 static char* txn_buffer;
 
+static int soft_read_pos;
+
 // read when there's nothing left to read and write when out of space errors
 // change function names to match sdraw
 
 int da_initialize() {
     SD_init();
+    soft_read_pos = 0;
     return DISK_SUCCESS;
 }
 
@@ -195,4 +198,13 @@ int da_get_sector_size() {
 
 int da_get_num_sectors(){
     return num_sectors;
+}
+
+int da_soft_commit() {
+    soft_read_pos = read_pos;
+    return read_pos;
+}
+int da_soft_rollback() {
+    read_pos = soft_read_pos;
+    return read_pos;
 }

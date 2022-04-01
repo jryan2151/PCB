@@ -31,6 +31,7 @@ uint8_t getStatus() {
 
 static void Storage_taskFxn(UArg a0, UArg a1) {
     Storage_init();
+    const int SLEEP_TIME = 10;
 
     while (storage_status == 0) {
         Semaphore_pend(storage_buffer_mailbox, BIOS_WAIT_FOREVER);

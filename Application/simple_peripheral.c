@@ -55,6 +55,7 @@
 #include <ti/sysbios/knl/Event.h>
 #include <ti/sysbios/knl/Queue.h>
 #include <ti/display/Display.h>
+#include <ti/sysbios/BIOS.h>
 
 #if defined( USE_FPGA ) || defined( DEBUG_SW_TRACE )
 #include <driverlib/ioc.h>
@@ -191,6 +192,9 @@ typedef struct
 Display_Handle dispHandle = NULL;
 //Semaphore_Handle bacpac_channel_mutex;
 Semaphore_Struct bacpac_channel_mutex_struct;
+Semaphore_Struct bacpac_channel_error_mutex_struct;
+Semaphore_Struct bacpac_channel_success_mutex_struct;
+Semaphore_Struct bacpac_channel_initialize_mutex_struct;
 char bleChannelBuf[BACPAC_SERVICE_CHANNEL_LEN];
 
 /*********************************************************************
@@ -483,6 +487,22 @@ static void SimplePeripheral_init(void)
     Semaphore_construct(&bacpac_channel_mutex_struct, 0, &channelParams);
     bacpac_channel_mutex = Semaphore_handle(&bacpac_channel_mutex_struct);
 
+    Semaphore_Params channelParams2;
+    Semaphore_Params_init(&channelParams2);
+    channelParams2.mode = Semaphore_Mode_BINARY;
+    Semaphore_construct(&bacpac_channel_success_mutex_struct, 0, &channelParams2);
+    bacpac_channel_success_mutex = Semaphore_handle(&bacpac_channel_success_mutex_struct);
+
+    Semaphore_Params channelParams3;
+    Semaphore_Params_init(&channelParams3);
+    channelParams3.mode = Semaphore_Mode_BINARY;
+    Semaphore_construct(&bacpac_channel_error_mutex_struct, 0, &channelParams3);
+    bacpac_channel_error_mutex = Semaphore_handle(&bacpac_channel_error_mutex_struct);
+
+
+    Semaphore_construct(&bacpac_channel_initialize_mutex_struct, 0, &channelParams);
+    bacpac_channel_initialize_mutex = Semaphore_handle(&bacpac_channel_initialize_mutex_struct);
+
   // Create an RTOS queue for message from profile to be sent to app.
   appMsgQueue = Util_constructQueue(&appMsg);
 
@@ -669,27 +689,63 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
   // Initialize application
   SimplePeripheral_init();
 
+  const int MIN_HEAP_FREE = 512;
+  const int LONG_SLEEP_TIME = 7000;
+  const int SHORT_SLEEP_TIME = 1200;
+  const int CHUNK_LENGTH = 512;
+  int chunkSent = 0;
+
   // Application main loop
 
   for (;;)
   {
       ICall_heapStats_t stats;
       ICall_getHeapStats(&stats);
-      if (stats.totalFreeSize < 512) {
-          Task_sleep(7000);
+      if (stats.totalFreeSize < MIN_HEAP_FREE) {
+          Task_sleep(LONG_SLEEP_TIME);
           continue;
       }
 
-      if (Semaphore_pend(bacpac_channel_mutex, 0)) {
+      if (Semaphore_pend(bacpac_channel_initialize_mutex, BIOS_NO_WAIT)) {
+          print("initializing\n\0");
+          chunkSent = 0;
+           memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
+           remaining_data = da_get_data_size();
+           da_soft_commit();
+           System_sprintf(bleChannelBuf, "%d", remaining_data);
+           Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
+      }
 
-             if (remaining_data == -1) {
-                 memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
-                 remaining_data = da_get_data_size();
-                 System_sprintf(bleChannelBuf, "%d", remaining_data);
-                 Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
-                 Semaphore_post(bacpac_channel_mutex);
+      if (Semaphore_pend(bacpac_channel_success_mutex, BIOS_NO_WAIT)) {
+          print("success\n\0");
+          char buf[32];
+          int readPos = da_soft_commit();
+          System_sprintf(buf, "soft commit to read pos: %d\n\0", readPos);
+          print(buf);
+          Semaphore_post(bacpac_channel_mutex);
+      }
+
+      if (Semaphore_pend(bacpac_channel_error_mutex, BIOS_NO_WAIT)) {
+          print("error\n\0");
+          char buf[32];
+          int readPos = da_soft_rollback();
+          System_sprintf(buf, "ROLLBACK to read pos: %d\n\0", readPos);
+          print(buf);
+          //remaining_data = da_get_data_size();
+
+          Semaphore_post(bacpac_channel_mutex);
+      }
+
+
+
+      if (Semaphore_pend(bacpac_channel_mutex, BIOS_NO_WAIT)) {
+             if (chunkSent >= CHUNK_LENGTH) {
+                 // if we send a full chunk, then don't sem post on bacpac channel mutex
+                 // that way we stop sending until we get a success or failure
+                 chunkSent = 0;
              }
              else if (remaining_data > 0) {
+                 remaining_data = da_get_data_size();
                  memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
                  if (remaining_data > BACPAC_SERVICE_CHANNEL_LEN) {
                      remaining_data -= BACPAC_SERVICE_CHANNEL_LEN;
@@ -700,12 +756,12 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                      remaining_data = 0;
                  }
 
+                 chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
                  Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
                  Semaphore_post(bacpac_channel_mutex);
              }
-             else notifications_sent();
 
-             Task_sleep(700);
+             Task_sleep(SHORT_SLEEP_TIME);
              continue;
           }
 
@@ -715,7 +771,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     // Note that an event associated with a thread is posted when a
     // message is queued to the message receive queue of the thread
     events = Event_pend(syncEvent, Event_Id_NONE, SBP_ALL_EVENTS,
-                        ICALL_TIMEOUT_FOREVER);
+                        /*ICALL_TIMEOUT_FOREVER*/BIOS_NO_WAIT);
 
 
     if (events)
@@ -764,14 +820,8 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
         }
       }
 
-      if (events & SBP_PERIODIC_EVT)
-      {
-        Util_startClock(&periodicClock);
-
-        // Perform periodic application task
-        SimplePeripheral_performPeriodicTask();
-      }
     }
+    Task_sleep(SHORT_SLEEP_TIME);
   }
 
 }

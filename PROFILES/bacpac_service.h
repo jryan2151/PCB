@@ -51,6 +51,9 @@ extern "C"
 
 #include <ti/sysbios/knl/Semaphore.h>
 extern Semaphore_Handle bacpac_channel_mutex;
+extern Semaphore_Handle bacpac_channel_success_mutex;
+extern Semaphore_Handle bacpac_channel_error_mutex;
+extern Semaphore_Handle bacpac_channel_initialize_mutex;
 extern int remaining_data;
 
 /*********************************************************************

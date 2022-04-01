@@ -67,6 +67,9 @@
 */
 
 Semaphore_Handle bacpac_channel_mutex;
+Semaphore_Handle bacpac_channel_success_mutex;
+Semaphore_Handle bacpac_channel_error_mutex;
+Semaphore_Handle bacpac_channel_initialize_mutex;
 
 // bacpac_service Service UUID
 CONST uint8_t bacpac_serviceUUID[ATT_BT_UUID_SIZE] =
@@ -90,7 +93,7 @@ CONST uint8_t bacpac_service_ExercisingUUID[ATT_UUID_SIZE] =
   TI_BASE_UUID_128(BACPAC_SERVICE_EXERCISING_UUID)
 };
 
-int remaining_data;
+int remaining_data = -1;
 /*********************************************************************
  * LOCAL VARIABLES
  */
@@ -526,8 +529,15 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
           Sensors_timer_test();
           break;
       case 0x07:
-          remaining_data = -1;
-          Semaphore_post(bacpac_channel_mutex);
+          Semaphore_post(bacpac_channel_initialize_mutex);
+          break;
+      case 0x08:
+          Semaphore_post(bacpac_channel_success_mutex);
+          // chunk success;
+          break;
+      case 0x09:
+          Semaphore_post(bacpac_channel_error_mutex);
+          // chunk failed
           break;
       default:
           Sensors_pos_test();

@@ -52,4 +52,7 @@ int da_get_sector(int sector);
 
 int da_get_data_size();
 
+int da_soft_commit();
+int da_soft_rollback();
+
 #endif
