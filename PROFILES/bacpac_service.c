@@ -507,27 +507,6 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
       memcpy(pAttr->pValue + offset, pValue, len);
 
       switch (pAttr->pValue[0]){
-      case 0:
-          Sensors_read_test();
-          break;
-      case 1:
-          Sensors_write_test();
-          break;
-      case 2:
-          Sensors_clear_test();
-          break;
-      case 3:
-          Sensors_close_test();
-          break;
-      case 4:
-          Sensors_load_test();
-          break;
-      case 5:
-          Sensors_size_test();
-          break;
-      case 6:
-          Sensors_timer_test();
-          break;
       case 0x07:
           Semaphore_post(bacpac_channel_initialize_mutex);
           break;
@@ -539,8 +518,6 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
           Semaphore_post(bacpac_channel_error_mutex);
           // chunk failed
           break;
-      default:
-          Sensors_pos_test();
       };
       // Only notify application if entire expected value is written
       if ( offset + len == BACPAC_SERVICE_TRANSFERRING_LEN)

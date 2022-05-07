@@ -97,7 +97,7 @@
 #include "Board.h"
 #include "DiskAccess.h"
 #include "Storage.h"
-
+#include "Serializer.h"
 #include "sensors.h"
 
 /////////////////////////// pin configuration ///////////////////////
@@ -115,7 +115,7 @@ float avg = 0;
 uint16_t adcValue = 0;
 float gain = 0;
 float impedance = 0; // ???
-char* myBuf;
+char* uartBuf;
 int clockticks = 0;
 uint_fast16_t uartTxBufferOffset = 0; // ???
 
@@ -127,7 +127,7 @@ static int MUXFREQ = 200;  //600 (maybe not good for bluetooth so probably don't
 
 // CAP'N'S LOG: ADDED BY GABE
 static float PERIOD = 3.0592303;
-float MILLISECONDS = 0;
+uint16_t milliseconds = 0;
 uint8_t sensorValues[channels] = {100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100}; //initial tap value for each sensor
 int taps[8] = {1,5,15,35,60,100,150,155}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
 int currentTap[channels] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}; //stores the tap value for each sensor so we can have the right tap for each read.
@@ -343,7 +343,7 @@ void uartCallback(UART_Handle handle, void *buf, size_t count) { return; }
 //void *mainThread(void *arg0) // ??? OLD NAME (DONT REPLACE)
 //static void mainThread(UArg a0, UArg a1)
 void Sensors_init() {
-    myBuf = (char*) malloc(64 * sizeof(char));
+    uartBuf = (char*) malloc(256 * sizeof(char));
     // Initialize Variables
     Signal.ampAC = lastAmp[0]; //&&& signal2.->Signal.
 
@@ -501,16 +501,7 @@ void Sensors_init() {
     PIN_setOutputValue(muxPinHandle, IOID_12, 0); //S1
     PIN_setOutputValue(muxPinHandle, IOID_15, 0); //S0
 
-    //DA_get_status(da_load(), "Loading Disk");
-
-    // GABE DELETED SOMETHING FROM HERE
-
-    Types_FreqHz  freq2;
-    BIOS_getCpuFreq(&freq2);
-    char buf[32];
-    System_sprintf(buf, "%u\n", freq2.lo);
-    print(buf);
-
+    DA_get_status(da_load(), "Loading Disk");
 
 }
 
@@ -526,59 +517,6 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
     }
 };
 
-void Sensors_write_test() {
-    int t1 = Timestamp_get32();
-    int res = da_write("Simple Peripheral sd card write test. Please work for me======\n\0", 64);
-    if (res == 1) {
-        int t2 = Timestamp_get32();
-
-        System_sprintf(myBuf, "Write in %d clock cycles\n\0", t2 - t1);
-        UART_write(uart, myBuf, strlen(myBuf));
-    }
-    else DA_get_status(res, "Writing Card");
-
-}
-
-void Sensors_read_test() {
-    int res = da_read(myBuf, 64);
-    if (res == 1) UART_write(uart, myBuf, 64);
-    else DA_get_status(res, "Reading card");
-}
-
-void Sensors_size_test() {
-    System_sprintf(myBuf, "s size: %d num s: %d\n\0", da_get_sector_size(), da_get_num_sectors());
-    UART_write(uart, myBuf, strlen(myBuf));
-}
-
-void Sensors_pos_test() {
-    char myBuf[64];
-    System_sprintf(myBuf, "read pos: %d write pos: %d\n\0", da_get_read_pos(), da_get_write_pos());
-    UART_write(uart, myBuf, strlen(myBuf));
-}
-
-void Sensors_clear_test() {
-    DA_get_status(da_clear(), "Clearing card");
-}
-
-void Sensors_load_test() {
-    DA_get_status(da_load(), "Loading card");
-}
-
-void Sensors_close_test() {
-    DA_get_status(da_close(), "Closing card");
-}
-
-void Sensors_timer_test() {
-    DACtimerCallback(NULL, NULL);
-}
-
-void hello_world() {
-    UART_write(uart, "hello world\n", 12);
-}
-
-void hello_there() {
-    UART_write(uart, "Hello there!\n", 13);
-}
 
 void ReplaceTheMess_GS(uint8_t muxidx_GS){
     switch(muxidx_GS) {
@@ -721,9 +659,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
         if (uartTxBufferOffset < UARTBUFFERSIZE) {
             amp = ADC_convertRawToMicroVolts(adc,lastAmp[muxmod])/ampFactor;
-            uint32_t ampBase = (uint32_t)amp;
-            uint32_t ampDecimal = (uint32_t)(amp * 100) - (ampBase * 100);
-            storage_buffer_length += System_sprintf(storage_buffer + storage_buffer_length, "%u,%u,%u.%u,", (uint32_t)MILLISECONDS, muxmod, ampBase, ampDecimal);
         }
 
         ////////// ADC Read ///////////
@@ -767,21 +702,16 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         if (impedance > 49999.99){
             impedance = 49999.99;
         }
-        // THIS IS THE POSSIBLE LOWER LIMIT OF THE BLOCK COMMENT (FUNCTIONING) //
-        //
-        ////////// Continues to write to the UART Buffer /////////
-        uint32_t impedanceBase = (uint32_t)impedance;
-        uint32_t impedanceDecimal = (uint32_t)(impedance * 1000) - (impedanceBase * 1000);
 
-        uint32_t gainBase = (uint32_t)gain;
-        uint32_t gainDecimal = (uint32_t)(gain * 100) - (gain * 100);
-        storage_buffer_length += System_sprintf(storage_buffer + storage_buffer_length, "%u.%u,%u.%u,%u,%u\n", impedanceBase, impedanceDecimal, gainBase, gainDecimal, sensorValues[muxmod], adcValue);
+        if (serializer_isFull()) serializer_setTimestamp(milliseconds);
+        serializer_addImpedance(impedance);
+        if (serializer_isFull()) {
+            serializer_serializeReadable(uartBuf);
+            print(uartBuf);
+        }
+        //storage_buffer_length += System_sprintf(storage_buffer + storage_buffer_length, "%u.%u,%u.%u,%u,%u\n", impedanceBase, impedanceDecimal, gainBase, gainDecimal, sensorValues[muxmod], adcValue);
 
-        // CAP'N'S LOG: I'VE NARROWED DOWN PROBLEMS TO THE LINES COMMENTED OUT, INCLUDING THE SIX fabs
-        // AND THE FOUR snprintf FUNCTIONS. I SUSPECT A PROBLEM WITH THESE.
         GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
-
-        // THIS IS THE LOWER LIMIT OF THE BLOCK COMMENT (FUNCTIONING) //
 
         ////////// Changes tap value if necessary //////////
         if (gain < lowCuts[currentTap[muxmod]])
@@ -818,19 +748,19 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         I2C_transfer(I2Chandle, &i2cTrans3);
 
         ////////// Display the data via UART ///////////
-        if (Semaphore_pend(storage_buffer_mutex, 0)) {
+        //if (Semaphore_pend(storage_buffer_mutex, 0)) {
             UART_write(uart, storage_buffer, storage_buffer_length);
-            Semaphore_post(storage_buffer_mailbox);
-        }
+        //    Semaphore_post(storage_buffer_mailbox);
+        //}
 
         ////////// Updates milliseconds variable //////////
-        MILLISECONDS = MILLISECONDS + PERIOD;
+        milliseconds = milliseconds + PERIOD;
         counterDAC = 0; // Reset counter to case 0
     }
 }
 
 void Sensors_start_timers() {
-    // GPTimerCC26XX_start(hMUXTimer);
+    milliseconds = 0;
     GPTimerCC26XX_start(hDACTimer);
 }
 
@@ -842,27 +772,27 @@ void Sensors_stop_timers() {
 void DA_get_status(int status_code, char* message) {
     switch (status_code) {
         case DISK_NULL_HANDLE:
-            System_sprintf(myBuf, "%s: SD handle null\n\0", message);
+            System_sprintf(uartBuf, "%s: SD handle null\n\0", message);
             break;
         case DISK_FAILED_INIT:
-            System_sprintf(myBuf, "%s: Failed to initialize SD card\n\0", message);
+            System_sprintf(uartBuf, "%s: Failed to initialize SD card\n\0", message);
             break;
         case DISK_FAILED_READ:
-            System_sprintf(myBuf, "%s: Sector reading error\n\0", message);
+            System_sprintf(uartBuf, "%s: Sector reading error\n\0", message);
             break;
         case DISK_FAILED_WRITE:
-            System_sprintf(myBuf, "%s: Sector writing error\n\0", message);
+            System_sprintf(uartBuf, "%s: Sector writing error\n\0", message);
             break;
         case DISK_SUCCESS:
-            System_sprintf(myBuf, "%s: Success\n\0", message);
+            System_sprintf(uartBuf, "%s: Success\n\0", message);
             break;
         case DISK_LOCKED:
-            System_sprintf(myBuf, "%s: Disk locked\n\0", message);
+            System_sprintf(uartBuf, "%s: Disk locked\n\0", message);
             break;
         default:
-            System_sprintf(myBuf, "%s: Unknown status: %d\n\0", message, status_code);
+            System_sprintf(uartBuf, "%s: Unknown status: %d\n\0", message, status_code);
    }
-    UART_write(uart, myBuf, strlen(myBuf));
+    UART_write(uart, uartBuf, strlen(uartBuf));
 }
 
 void print(char* str) {
