@@ -502,7 +502,6 @@ void Sensors_init() {
     PIN_setOutputValue(muxPinHandle, IOID_15, 0); //S0
 
     DA_get_status(da_load(), "Loading Disk");
-
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -705,11 +704,12 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
         if (serializer_isFull()) serializer_setTimestamp(milliseconds);
         serializer_addImpedance(impedance);
-        if (serializer_isFull()) {
+        if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
+            storage_buffer_length += serializer_serialize(storage_buffer);
             serializer_serializeReadable(uartBuf);
             print(uartBuf);
+            Semaphore_post(storage_buffer_mailbox);
         }
-        //storage_buffer_length += System_sprintf(storage_buffer + storage_buffer_length, "%u.%u,%u.%u,%u,%u\n", impedanceBase, impedanceDecimal, gainBase, gainDecimal, sensorValues[muxmod], adcValue);
 
         GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
 
@@ -747,12 +747,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         txBuffer3[1] = sensorValues[muxidx];
         I2C_transfer(I2Chandle, &i2cTrans3);
 
-        ////////// Display the data via UART ///////////
-        //if (Semaphore_pend(storage_buffer_mutex, 0)) {
-            UART_write(uart, storage_buffer, storage_buffer_length);
-        //    Semaphore_post(storage_buffer_mailbox);
-        //}
-
         ////////// Updates milliseconds variable //////////
         milliseconds = milliseconds + PERIOD;
         counterDAC = 0; // Reset counter to case 0
@@ -766,6 +760,7 @@ void Sensors_start_timers() {
 
 void Sensors_stop_timers() {
     // GPTimerCC26XX_stop(hMUXTimer);
+    serializer_clear();
     GPTimerCC26XX_stop(hDACTimer);
 }
 

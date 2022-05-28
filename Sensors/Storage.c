@@ -10,7 +10,7 @@
 #endif
 
 #ifndef STORAGE_BUF_SIZE
-#define STORAGE_BUF_SIZE            64
+#define STORAGE_BUF_SIZE            128
 #endif
 
 Semaphore_Struct storage_buffer_mailbox_struct;
@@ -31,7 +31,6 @@ uint8_t getStatus() {
 
 static void Storage_taskFxn(UArg a0, UArg a1) {
     Storage_init();
-    const int SLEEP_TIME = 10;
 
     while (storage_status == 0) {
         Semaphore_pend(storage_buffer_mailbox, BIOS_WAIT_FOREVER);
@@ -73,4 +72,8 @@ void Storage_createTask(void) {
   taskParams.priority = STORAGE_TASK_PRIORITY;
 
   Task_construct(&storageTask, Storage_taskFxn, &taskParams, NULL);
+}
+
+char* Storage_get_transaction_buffer() {
+    return da_get_transaction_buffer();
 }

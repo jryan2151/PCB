@@ -55,4 +55,7 @@ int da_get_data_size();
 int da_soft_commit();
 int da_soft_rollback();
 
+// TODO: delete this function. Only adding it for debugging purposes. This is a dangerous function
+char* da_get_transaction_buffer();
+
 #endif

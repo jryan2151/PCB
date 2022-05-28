@@ -8,18 +8,21 @@
 #ifndef SENSORS_SERIALIZER_H_
 #define SENSORS_SERIALIZER_H_
 
+#define NUM_SENSORS 16
+
 #include <stdint.h>
 #include <xdc/runtime/System.h>
 
 struct SensorData {
-    uint16_t timestamp;
-    float impedanceValues[16];
+    unsigned short timestamp;
+    float impedanceValues[NUM_SENSORS];
 };
 
 int serializer_isFull();
 void serializer_setTimestamp(uint16_t);
 void serializer_addImpedance(float);
-void serializer_serialize(char*);
-void serializer_serializeReadable(char*);
+int serializer_serialize(char*);
+int serializer_serializeReadable(char*);
+void serializer_clear();
 
 #endif /* SENSORS_SERIALIZER_H_ */

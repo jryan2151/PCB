@@ -8,7 +8,6 @@
 #include "Serializer.h"
 
 static struct SensorData sensorData;
-const uint8_t NUM_SENSORS = 16;
 static uint8_t index = 0;
 
 int serializer_isFull() {
@@ -24,11 +23,13 @@ void serializer_addImpedance(float impedance) {
     index = (index + 1) % NUM_SENSORS;
 }
 
-void serializer_serialize(char* buffer) {
-
+int serializer_serialize(char* buffer) {
+    memcpy(buffer, &sensorData.timestamp, sizeof(unsigned short));
+    memcpy(buffer + sizeof(unsigned short), sensorData.impedanceValues, sizeof(float) * NUM_SENSORS);
+    return sizeof(unsigned short) + sizeof(float) * NUM_SENSORS;
 }
 
-void serializer_serializeReadable(char* buffer) {
+int serializer_serializeReadable(char* buffer) {
     uint16_t offset = 0;
     offset += System_sprintf(buffer, "%u", sensorData.timestamp);
 
@@ -39,5 +40,12 @@ void serializer_serializeReadable(char* buffer) {
         offset += System_sprintf(buffer + offset, ",%u.%u", base, decimal);
     }
 
-    System_sprintf(buffer + offset, "\n\0");
+    offset += System_sprintf(buffer + offset, "\n\0");
+
+    return offset;
 }
+
+void serializer_clear() {
+    index = 0;
+}
+

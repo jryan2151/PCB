@@ -692,7 +692,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
   const int MIN_HEAP_FREE = 512;
   const int LONG_SLEEP_TIME = 7000;
   const int SHORT_SLEEP_TIME = 1200;
-  const int CHUNK_LENGTH = 512;
+  const int CHUNK_LENGTH = 528;
   int chunkSent = 0;
 
   // Application main loop
@@ -747,16 +747,23 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
              else if (remaining_data > 0) {
                  remaining_data = da_get_data_size();
                  memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
-                 if (remaining_data > BACPAC_SERVICE_CHANNEL_LEN) {
+                 if (CHUNK_LENGTH - chunkSent < BACPAC_SERVICE_CHANNEL_LEN) {
+                     int partialLength = CHUNK_LENGTH - chunkSent;
+                     da_read(bleChannelBuf, partialLength);
+                     chunkSent += partialLength;
+                 }
+                 else if (remaining_data > BACPAC_SERVICE_CHANNEL_LEN) {
                      remaining_data -= BACPAC_SERVICE_CHANNEL_LEN;
                      da_read(bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
+                     chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
                  }
                  else {
                      da_read(bleChannelBuf, remaining_data);
                      remaining_data = 0;
+                     chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
                  }
 
-                 chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
+
                  Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
                  Semaphore_post(bacpac_channel_mutex);
              }

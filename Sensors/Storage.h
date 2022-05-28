@@ -14,5 +14,8 @@ void Storage_init();
 extern void Storage_createTask(void);
 uint8_t getStatus();
 
+//TODO: remove this dangerous function
+char* Storage_get_transaction_buffer();
+
 
 #endif

@@ -208,3 +208,7 @@ int da_soft_rollback() {
     read_pos = soft_read_pos;
     return read_pos;
 }
+
+char* da_get_transaction_buffer() {
+    return txn_buffer;
+}
