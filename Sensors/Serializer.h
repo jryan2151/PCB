@@ -14,12 +14,12 @@
 #include <xdc/runtime/System.h>
 
 struct SensorData {
-    unsigned short timestamp;
+    uint32_t timestamp;
     float impedanceValues[NUM_SENSORS];
 };
 
 int serializer_isFull();
-void serializer_setTimestamp(uint16_t);
+void serializer_setTimestamp(uint32_t);
 void serializer_addImpedance(float);
 int serializer_serialize(char*);
 int serializer_serializeReadable(char*);

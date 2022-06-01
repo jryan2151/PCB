@@ -119,20 +119,25 @@ char* uartBuf;
 int clockticks = 0;
 uint_fast16_t uartTxBufferOffset = 0; // ???
 
+int stutter = 0; //checks to make sure we dont stutter more than 3 times
+
 uint8_t DEVICENUM = 1;
 const int channels = 16; //change to const in channels = 16; ???
-//int lastAmp[1] = {0}; //initialize to the value you want to start the signal2 at (must be as long as channel)
-static int MUXFREQ = 200;  //600 (maybe not good for bluetooth so probably don't change ??? //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
+//int lastAmp[1] = {500}; //initialize to the value you want to start the signal2 at (must be as long as channel)
+static int MUXFREQ = 800;  //600 (maybe not good for bluetooth so probably don't change ??? //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
+
+static int inc = 0;
+static int checker; //this is to fix the end line
 
 
 // CAP'N'S LOG: ADDED BY GABE
-static float PERIOD = 3.0592303;
-uint16_t milliseconds = 0;
-uint8_t sensorValues[channels] = {100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100}; //initial tap value for each sensor
-int taps[8] = {1,5,15,35,60,100,150,155}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
+static float PERIOD_OF_TIME = 1.3087;
+float milliseconds = 0;
+uint8_t sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor
+int taps[8] = {1,24,32,45,60,125,200,250}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
 int currentTap[channels] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}; //stores the tap value for each sensor so we can have the right tap for each read.
-float lowCuts[8] = {0,8,9,10.5,10.5,12,0,0}; // the gain value at which we will switch to the next tap value because the gain is getting too low
-float highCuts[8] = {0,0,12.5,14.5,15,15,15,0}; // the gain value at which we will switch to the previous tap value because the gain is getting too high
+float lowCuts[8] = {0,1400,1400,1400,1200,1400,0,0}; // the gain value at which we will switch to the next tap value because the gain is getting too low
+float highCuts[8] = {0,4000,2400,2400,2300,2300,2300,0}; // the gain value at which we will switch to the previous tap value because the gain is getting too high
 // END OF CAP'N'S LOG
 
 
@@ -164,7 +169,9 @@ PIN_Config muxPinTable[] = {
 /* Task data */
 GPTimerCC26XX_Handle hMUXTimer;
 void MUXtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-    // muxmod = muxidx % channels; //get remainder of muxidx for switch // ??? Commented out in Joseph's code
+    // We determine this whole function is unnecessary
+
+    muxmod = muxidx % channels; //get remainder of muxidx for switch // ??? Commented out in Joseph's code
     switch(muxidx) // ??? Switched to muxidx from muxmod
 
     {
@@ -519,112 +526,112 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
 
 void ReplaceTheMess_GS(uint8_t muxidx_GS){
     switch(muxidx_GS) {
-        case 0: //2
+        case 10: //sensor 0 array pin 10
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0); //S3
             PIN_setOutputValue(muxPinHandle, IOID_23, 0); //S2
             PIN_setOutputValue(muxPinHandle, IOID_12, 0); //S1
             PIN_setOutputValue(muxPinHandle, IOID_15, 0); //S0
             break;
-        case 1: //4
+        case 13: // sensor 1 array pin 13
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 2: //6
+        case 11: // sensor 2 array pin 11
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 3: //8
+        case 8: // sensor 3 array pin 8
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 4: //10
+        case 14: //sensor 4 array pin 14
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 5: //12
+        case 12: //sensor 5 array pin 12
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 6: //14
+        case 15: //sensor 6 array pin 15
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 7: //16
+        case 7: // sensor 7 array pin 7
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 0);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 15: //15
+        case 4: // sensor 8 array pin 4
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 14: //13
+        case 6: //sensor 9 array pin 6
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 13: //11
+        case 0: // sensor 10 array pin 0
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 12: //9
+        case 5: // sensor 11 array pin 5
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 0);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 11: //7
+        case 2: // sensor 12 array pin 2
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 10: //5
+        case 3: // sensor 13 array pin 3
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 0);
             PIN_setOutputValue(muxPinHandle, IOID_15, 1);
             break;
-        case 9: //3
+        case 1: // sensor 14 array pin 1
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
             PIN_setOutputValue(muxPinHandle, IOID_12, 1);
             PIN_setOutputValue(muxPinHandle, IOID_15, 0);
             break;
-        case 8: //1
+        case 9: // sensor 15 array pin 9
             PIN_setOutputValue(muxPinHandle, IOID_21, 0); //E
             PIN_setOutputValue(muxPinHandle, IOID_22, 1);
             PIN_setOutputValue(muxPinHandle, IOID_23, 1);
@@ -648,10 +655,11 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     }
     else if (counterDAC == 2){
         muxmod = muxidx % channels; //get remainder of muxidx for switch
-        muxidx += 1; // increment counter note: this happens after we have already set pot and sensor in case 2
-        if(muxidx == channels){
-            muxidx = 0; // reset counter back to zero, if it equals the number of channels
-        }
+        // this code moved lower to account for stutter code
+        // muxidx += 1; increment counter note: this happens after we have already set pot and sensor in case 2
+//        if(muxidx == channels){
+//            muxidx = 0; // reset counter back to zero, if it equals the number of channels
+//        }
         storage_buffer_length = 0;
 
         float amp; uint8_t ampFactor = 3;
@@ -675,65 +683,83 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         I2C_transfer(I2Chandle, &i2cTrans1);
         //I2C_transfer(I2Chandle, &i2cTrans2);
 
-        gain = (float)adcVal/amp;
+        //////////ADC Stutter ////////// -- JR
+//          we removed the stutter because it is untested
+//        if ( (adcValue < 2950) || (stutter > 3) ) { //Run normal process if adc Value is below the upper fence, or if we have already stuttered 3 times
+            muxidx += 1; // increment counter note: this happens after we have already set pot and sensor in case 2
+            if(muxidx == channels){
+                muxidx = 0; // reset counter back to zero, if it equals the number of channels
+                }
 
-        if (gain == 5.92){
-            impedance = 10000;
-        }
-        else if (sensorValues[muxmod] == 5){
-            impedance = fabs((-177.5 * gain * gain + 3909 * gain + -17140)/(gain * gain + -11.95 * gain + 35.68));
-        }
-        else if (sensorValues[muxmod] == 15){
-            impedance = fabs((-167.3 * gain * gain + 6123 * gain + -30850)/(gain * gain + -11.96 * gain + 35.77));
-        }
-        else if (sensorValues[muxmod] == 35){
-            impedance = fabs((-176.2 * gain * gain + 10770 * gain + -58910)/(gain * gain + -12 * gain + 36.01));
-        }
-        else if (sensorValues[muxmod] == 60){
-            impedance = fabs((-170 * gain * gain + 16450 * gain + -94500)/(gain * gain + -12.08 * gain + 36.46));
-        }
-        else if (sensorValues[muxmod] == 100){
-            impedance = fabs((-172.8 * gain * gain + 25750 * gain + -157100)/(gain * gain + -12.3 * gain + 37.8));
-        }
-        else if (sensorValues[muxmod] == 150){
-            impedance = fabs(( -684.2 * gain + 43550)/(gain + -5.773));
-        }
-        if (impedance > 49999.99){
-            impedance = 49999.99;
-        }
+        // gain = (float)adcVal/amp;
 
-        if (serializer_isFull()) serializer_setTimestamp(milliseconds);
-        serializer_addImpedance(impedance);
-        if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
-            storage_buffer_length += serializer_serialize(storage_buffer);
-            serializer_serializeReadable(uartBuf);
-            print(uartBuf);
-            Semaphore_post(storage_buffer_mailbox);
-        }
+            if (adcValue < 400){
+                impedance = 49999.99;
+            }
 
-        GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
+                    else if (sensorValues[muxmod] == 24){
+                        impedance = fabs((-226.6 * adcValue + 644686)/(adcValue + -414.9));
+                    }
+                    else if (sensorValues[muxmod] == 32){
+                        impedance = fabs((-186.3 * adcValue + 699935)/(adcValue + -480.1));
+                    }
+                    else if (sensorValues[muxmod] == 45){
+                        impedance = fabs((-175.6 * adcValue + 919799)/(adcValue + -485.5));
+                    }
+                    else if (sensorValues[muxmod] == 60){
+                        impedance = fabs((-31.3 * adcValue + 928390)/(adcValue + -508.0));
+                    }
+                    else if (sensorValues[muxmod] == 125){
+                        impedance = fabs((-482.8 * adcValue + 2892453)/(adcValue + -447.2));
+                    }
+                    else if (sensorValues[muxmod] == 200){
+                        impedance = fabs((-592.0 * adcValue + 4185201)/(adcValue + -472.1));
+                    }
+            if (impedance > 49999.99){
+                impedance = 49999.99;
+            }
+
+
+            if (serializer_isFull()) serializer_setTimestamp((uint32_t)milliseconds);
+            serializer_addImpedance(impedance);
+            if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
+                storage_buffer_length += serializer_serialize(storage_buffer);
+                serializer_serializeReadable(uartBuf);
+                print(uartBuf);
+                Semaphore_post(storage_buffer_mailbox);
+            }
+
+            GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
 
         ////////// Changes tap value if necessary //////////
-        if (gain < lowCuts[currentTap[muxmod]])
-        {
-            currentTap[muxmod]++;
-            sensorValues[muxmod] = taps[currentTap[muxmod]];
-        }
-        else if (gain > highCuts[currentTap[muxmod]])
-        {
-            currentTap[muxmod]--;
-            sensorValues[muxmod] = taps[currentTap[muxmod]];
-        }
-        if (currentTap[muxmod] > 6)
-        {
-            currentTap[muxmod] = 6;
-            sensorValues[muxmod] = taps[currentTap[muxmod]];
-        }
-        else if (currentTap[muxmod] < 1)
-        {
-            currentTap[muxmod] = 1;
-            sensorValues[muxmod] = taps[currentTap[muxmod]];
-        }
+            if (gain < lowCuts[currentTap[muxmod]])
+            {
+                currentTap[muxmod]++;
+                sensorValues[muxmod] = taps[currentTap[muxmod]];
+            }
+            else if (gain > highCuts[currentTap[muxmod]])
+            {
+                currentTap[muxmod]--;
+                sensorValues[muxmod] = taps[currentTap[muxmod]];
+            }
+            if (currentTap[muxmod] > 6)
+            {
+                currentTap[muxmod] = 6;
+                sensorValues[muxmod] = taps[currentTap[muxmod]];
+            }
+            else if (currentTap[muxmod] < 1)
+            {
+                currentTap[muxmod] = 1;
+                sensorValues[muxmod] = taps[currentTap[muxmod]];
+            }
+//          removed because untested
+//            stutter = 0; //The ADC value is below 2950, so no stuttering occured
+//        }
+//
+//        else {  //Stutter the code and move down in the tap if the ADC value is too high
+//                    currentTap[muxmod]--;
+//                    stutter++;
+//                }
 
 
         counterDATA += 1; //increment sample counter once finished
@@ -745,10 +771,13 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         ////////// Set potentiometer value for next read //////////
         txBuffer3[0] = 0;
         txBuffer3[1] = sensorValues[muxidx];
+
+        // this helps modify the buffer to output time stamp, tap value, impedences
+
         I2C_transfer(I2Chandle, &i2cTrans3);
 
         ////////// Updates milliseconds variable //////////
-        milliseconds = milliseconds + PERIOD;
+        milliseconds = milliseconds + PERIOD_OF_TIME;
         counterDAC = 0; // Reset counter to case 0
     }
 }

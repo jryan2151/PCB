@@ -4,7 +4,7 @@
 
 SHELL = cmd.exe
 
-CG_TOOL_ROOT := C:/ti/ccs1040/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS
+CG_TOOL_ROOT := C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS
 
 GEN_OPTS__FLAG := --cmd_file="configPkg/compiler.opt" 
 GEN_CMDS__FLAG := -l"configPkg/linker.cmd" 
@@ -40,9 +40,9 @@ $(GEN_CMDS__FLAG) \
 -l"C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/drivers/lib/drivers_cc26x0r2.aem3" \
 -l"C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/display/lib/display.aem3" \
 -l"C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/grlib/lib/ccs/m3/grlib.a" \
--l"C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/ble_r2.symbols" \
--l"C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/lib_linker.cmd" \
--l"C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/simple_peripheral_cc2640r2lp_stack_library.lib" \
+-l"C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/ble_r2.symbols" \
+-l"C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/lib_linker.cmd" \
+-l"C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/simple_peripheral_cc2640r2lp_stack_library.lib" \
 -l"C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/blestack/common/cc26xx/ccs/cc26xx_app.cmd" \
 -llibc.a \
 
@@ -186,13 +186,13 @@ all: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@$(MAKE) --no-print-directory -Onone "simple_peripheral_cc2640r2lp_app.out"
 
 dependents:
-	-cd C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library && $(MAKE) all
+	-cd C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library && $(MAKE) all
 
 # Tool invocations
-simple_peripheral_cc2640r2lp_app.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS) C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/simple_peripheral_cc2640r2lp_stack_library.lib
+simple_peripheral_cc2640r2lp_app.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS) C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/simple_peripheral_cc2640r2lp_stack_library.lib
 	@echo 'Building target: "$@"'
 	@echo 'Invoking: Arm Linker'
-	"C:/ti/ccs1040/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/bin/armcl" --cmd_file="C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/blestack/config/build_components.opt" --cmd_file="C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/blestack/config/factory_config.opt" --cmd_file="C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/TOOLS/build_config.opt"  -mv7M3 --code_state=16 -me -O4 --opt_for_speed=1 --define=DeviceFamily_CC26X0R2 --define=BOARD_DISPLAY_USE_LCD=0 --define=BOARD_DISPLAY_USE_UART=1 --define=BOARD_DISPLAY_USE_UART_ANSI=1 --define=CC2640R2_LAUNCHXL --define=CC26XX --define=CC26XX_R2 --define=ICALL_EVENTS --define=ICALL_JT --define=ICALL_LITE --define=ICALL_MAX_NUM_ENTITIES=6 --define=ICALL_MAX_NUM_TASKS=3 --define=ICALL_STACK0_ADDR --define=MAX_NUM_BLE_CONNS=1 --define=POWER_SAVING --define=STACK_LIBRARY --define=USE_ICALL --define=xdc_runtime_Assert_DISABLE_ALL --define=xdc_runtime_Log_DISABLE_ALL -g --c99 --gcc --diag_warning=225 --diag_wrap=off --display_error_number --gen_func_subsections=on --abi=eabi -z -m"simple_peripheral_cc2640r2lp_app.map" --heap_size=0 --stack_size=256 -i"C:/ti/ccs1040/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/lib" -i"C:/ti/ccs1040/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/include" --reread_libs --define=CC26X0ROM=2 --diag_suppress=16002-D --diag_suppress=10247-D --diag_suppress=10325-D --diag_suppress=10229-D --diag_suppress=16032-D --diag_wrap=off --display_error_number --warn_sections --xml_link_info="simple_peripheral_cc2640r2lp_app_linkInfo.xml" --rom_model -o "simple_peripheral_cc2640r2lp_app.out" $(ORDERED_OBJS)
+	"C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/bin/armcl" --cmd_file="C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/blestack/config/build_components.opt" --cmd_file="C:/ti/simplelink_cc2640r2_sdk_5_10_00_02/source/ti/blestack/config/factory_config.opt" --cmd_file="C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/TOOLS/build_config.opt"  -mv7M3 --code_state=16 -me -O4 --opt_for_speed=1 --define=DeviceFamily_CC26X0R2 --define=BOARD_DISPLAY_USE_LCD=0 --define=BOARD_DISPLAY_USE_UART=1 --define=BOARD_DISPLAY_USE_UART_ANSI=1 --define=CC2640R2_LAUNCHXL --define=CC26XX --define=CC26XX_R2 --define=ICALL_EVENTS --define=ICALL_JT --define=ICALL_LITE --define=ICALL_MAX_NUM_ENTITIES=6 --define=ICALL_MAX_NUM_TASKS=3 --define=ICALL_STACK0_ADDR --define=MAX_NUM_BLE_CONNS=1 --define=POWER_SAVING --define=STACK_LIBRARY --define=USE_ICALL --define=xdc_runtime_Assert_DISABLE_ALL --define=xdc_runtime_Log_DISABLE_ALL -g --c99 --gcc --diag_warning=225 --diag_wrap=off --display_error_number --gen_func_subsections=on --abi=eabi -z -m"simple_peripheral_cc2640r2lp_app.map" --heap_size=0 --stack_size=256 -i"C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/lib" -i"C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/include" --reread_libs --define=CC26X0ROM=2 --diag_suppress=16002-D --diag_suppress=10247-D --diag_suppress=10325-D --diag_suppress=10229-D --diag_suppress=16032-D --diag_wrap=off --display_error_number --warn_sections --xml_link_info="simple_peripheral_cc2640r2lp_app_linkInfo.xml" --rom_model -o "simple_peripheral_cc2640r2lp_app.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: "$@"'
 	@echo ' '
 	@$(MAKE) --no-print-directory post-build
@@ -200,7 +200,7 @@ simple_peripheral_cc2640r2lp_app.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS) C:/Users/j
 simple_peripheral_cc2640r2lp_app.hex: $(EXE_OUTPUTS)
 	@echo 'Building secondary target: "$@"'
 	@echo 'Invoking: Arm Hex Utility'
-	"C:/ti/ccs1040/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/bin/armhex" --memwidth=8 --romwidth=8 --diag_wrap=off --intel -o "simple_peripheral_cc2640r2lp_app.hex" $(EXE_OUTPUTS__QUOTED)
+	"C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/bin/armhex" --memwidth=8 --romwidth=8 --diag_wrap=off --intel -o "simple_peripheral_cc2640r2lp_app.hex" $(EXE_OUTPUTS__QUOTED)
 	@echo 'Finished building secondary target: "$@"'
 	@echo ' '
 	@$(MAKE) --no-print-directory post-build
@@ -215,12 +215,12 @@ clean:
 	-@echo ' '
 
 post-build:
-	-C:/ti/ccs1040/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/bin/armhex -order MS --memwidth=8 --romwidth=8 --intel -o simple_peripheral_cc2640r2lp_app.hex simple_peripheral_cc2640r2lp_app.out
+	-C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-arm_20.2.5.LTS/bin/armhex -order MS --memwidth=8 --romwidth=8 --intel -o simple_peripheral_cc2640r2lp_app.hex simple_peripheral_cc2640r2lp_app.out
 	-@echo ' '
 
 .PHONY: all clean dependents
 .SECONDARY:
-C:/Users/jacek/workspace_v10/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/simple_peripheral_cc2640r2lp_stack_library.lib:
+C:/Users/jared/BACPAC/Workspace2/simple_peripheral_cc2640r2lp_stack_library/FlashROM_Library/simple_peripheral_cc2640r2lp_stack_library.lib:
 
 -include ../makefile.targets
 
