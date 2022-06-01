@@ -19,7 +19,7 @@ struct SensorData {
 };
 
 int serializer_isFull();
-void serializer_setTimestamp(uint16_t);
+void serializer_setTimestamp(unsigned short);
 void serializer_addImpedance(float);
 int serializer_serialize(char*);
 int serializer_serializeReadable(char*);

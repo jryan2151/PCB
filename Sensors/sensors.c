@@ -127,7 +127,7 @@ static int MUXFREQ = 200;  //600 (maybe not good for bluetooth so probably don't
 
 // CAP'N'S LOG: ADDED BY GABE
 static float PERIOD = 3.0592303;
-uint16_t milliseconds = 0;
+unsigned short milliseconds = 0;
 uint8_t sensorValues[channels] = {100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100}; //initial tap value for each sensor
 int taps[8] = {1,5,15,35,60,100,150,155}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
 int currentTap[channels] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}; //stores the tap value for each sensor so we can have the right tap for each read.

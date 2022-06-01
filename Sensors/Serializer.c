@@ -14,7 +14,7 @@ int serializer_isFull() {
     return index == 0;
 }
 
-void serializer_setTimestamp(uint16_t timestamp) {
+void serializer_setTimestamp(unsigned short timestamp) {
     sensorData.timestamp = timestamp;
 }
 
@@ -24,9 +24,9 @@ void serializer_addImpedance(float impedance) {
 }
 
 int serializer_serialize(char* buffer) {
-    memcpy(buffer, &sensorData.timestamp, sizeof(unsigned short));
-    memcpy(buffer + sizeof(unsigned short), sensorData.impedanceValues, sizeof(float) * NUM_SENSORS);
-    return sizeof(unsigned short) + sizeof(float) * NUM_SENSORS;
+    memcpy(buffer, &sensorData.timestamp, sizeof(uint16_t));
+    memcpy(buffer + sizeof(uint16_t), sensorData.impedanceValues, sizeof(float) * NUM_SENSORS);
+    return sizeof(uint16_t) + sizeof(float) * NUM_SENSORS;
 }
 
 int serializer_serializeReadable(char* buffer) {

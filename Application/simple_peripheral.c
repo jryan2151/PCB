@@ -675,6 +675,19 @@ static void SimplePeripheral_init(void)
   Display_print0(dispHandle, 0, 0, "BLE Peripheral\n");
 }
 
+char* outputBuffer;
+void printNotification(int pos, char* buffer, int dataLength) {
+    int outputBufferSize = 0;
+    outputBufferSize += System_sprintf(outputBuffer, "%u:", pos);
+
+    for (int i = 0; i < dataLength; i++) {
+        outputBufferSize += System_sprintf(outputBuffer + outputBufferSize, " %x", buffer[i]);
+    }
+
+    System_sprintf(outputBuffer + outputBufferSize, "\n\0");
+
+    print(outputBuffer);
+}
 /*********************************************************************
  * @fn      SimplePeripheral_taskFxn
  *
@@ -694,6 +707,8 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
   const int SHORT_SLEEP_TIME = 1200;
   const int CHUNK_LENGTH = 528;
   int chunkSent = 0;
+  short finished = 0;
+  outputBuffer = malloc(sizeof(char) * 64);
 
   // Application main loop
 
@@ -707,8 +722,10 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
       }
 
       if (Semaphore_pend(bacpac_channel_initialize_mutex, BIOS_NO_WAIT)) {
-          print("initializing\n\0");
+          System_sprintf(outputBuffer, "initializing-read:%u write:%u\n\0", da_get_read_pos(), da_get_write_pos());
+          print(outputBuffer);
           chunkSent = 0;
+          finished = 0;
            memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
            remaining_data = da_get_data_size();
            da_soft_commit();
@@ -717,21 +734,21 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
       }
 
       if (Semaphore_pend(bacpac_channel_success_mutex, BIOS_NO_WAIT)) {
-          print("success\n\0");
+          System_sprintf(outputBuffer, "success-read:%u write:%u\n\0", da_get_read_pos(), da_get_write_pos());
+          print(outputBuffer);
           char buf[32];
           int readPos = da_soft_commit();
           System_sprintf(buf, "soft commit to read pos: %d\n\0", readPos);
           print(buf);
           Semaphore_post(bacpac_channel_mutex);
+          if (finished) da_commit();
       }
 
       if (Semaphore_pend(bacpac_channel_error_mutex, BIOS_NO_WAIT)) {
-          print("error\n\0");
-          char buf[32];
-          int readPos = da_soft_rollback();
-          System_sprintf(buf, "ROLLBACK to read pos: %d\n\0", readPos);
-          print(buf);
-          //remaining_data = da_get_data_size();
+          da_soft_rollback();
+          System_sprintf(outputBuffer, "error-read:%u write:%u\n\0", da_get_read_pos(), da_get_write_pos());
+          print(outputBuffer);
+          finished = 0;
 
           Semaphore_post(bacpac_channel_mutex);
       }
@@ -750,16 +767,23 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                  if (CHUNK_LENGTH - chunkSent < BACPAC_SERVICE_CHANNEL_LEN) {
                      int partialLength = CHUNK_LENGTH - chunkSent;
                      da_read(bleChannelBuf, partialLength);
+
+                     //printNotification(chunkSent, bleChannelBuf, partialLength);
                      chunkSent += partialLength;
                  }
                  else if (remaining_data > BACPAC_SERVICE_CHANNEL_LEN) {
                      remaining_data -= BACPAC_SERVICE_CHANNEL_LEN;
                      da_read(bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
+
+                     //printNotification(chunkSent, bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
                      chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
                  }
                  else {
                      da_read(bleChannelBuf, remaining_data);
                      remaining_data = 0;
+                     finished = 1;
+
+                     //printNotification(chunkSent, bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
                      chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
                  }
 
