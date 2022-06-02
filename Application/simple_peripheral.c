@@ -195,6 +195,7 @@ Semaphore_Struct bacpac_channel_mutex_struct;
 Semaphore_Struct bacpac_channel_error_mutex_struct;
 Semaphore_Struct bacpac_channel_success_mutex_struct;
 Semaphore_Struct bacpac_channel_initialize_mutex_struct;
+Semaphore_Struct bacpac_channel_failure_mutex_struct;
 char bleChannelBuf[BACPAC_SERVICE_CHANNEL_LEN];
 
 /*********************************************************************
@@ -503,6 +504,9 @@ static void SimplePeripheral_init(void)
     Semaphore_construct(&bacpac_channel_initialize_mutex_struct, 0, &channelParams);
     bacpac_channel_initialize_mutex = Semaphore_handle(&bacpac_channel_initialize_mutex_struct);
 
+    Semaphore_construct(&bacpac_channel_failure_mutex_struct, 0, &channelParams);
+    bacpac_channel_failure_mutex = Semaphore_handle(&bacpac_channel_failure_mutex_struct);
+
   // Create an RTOS queue for message from profile to be sent to app.
   appMsgQueue = Util_constructQueue(&appMsg);
 
@@ -752,6 +756,14 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
 
           Semaphore_post(bacpac_channel_mutex);
       }
+
+      if (Semaphore_pend(bacpac_channel_failure_mutex, BIOS_NO_WAIT)) {
+            da_clear();
+            chunkSent = 0;
+            System_sprintf(outputBuffer, "failure-read:%u write:%u\n\0", da_get_read_pos(), da_get_write_pos());
+            print(outputBuffer);
+            finished = 0;
+        }
 
 
 
