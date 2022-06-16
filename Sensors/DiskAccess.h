@@ -7,9 +7,9 @@
 #include <semaphore.h>
 
 
+
 // comment out these lines below when putting on board
 //#include "SDRaw.h"
-//#define Board_SD0 0
 // =======================================================
 
 #define DISK_SUCCESS         1
@@ -54,6 +54,7 @@ int da_get_data_size();
 
 int da_soft_commit();
 int da_soft_rollback();
+int da_commit();
 
 // TODO: delete this function. Only adding it for debugging purposes. This is a dangerous function
 char* da_get_transaction_buffer();
