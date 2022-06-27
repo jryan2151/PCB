@@ -232,7 +232,6 @@ static uint8_t scanRspData[] =
   'P',
   'A',
   'C',
-  ' ',
   'D',
   'e',
   'v',
@@ -240,6 +239,7 @@ static uint8_t scanRspData[] =
   'c',
   'e',
   ' ',
+  '0',
   '1',
 
   // connection interval range
@@ -276,7 +276,7 @@ static uint8_t advertData[] =
 };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPAC Device 1";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice 01";
 
 
 /*********************************************************************
