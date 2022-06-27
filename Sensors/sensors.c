@@ -154,8 +154,6 @@ int lastAmp[channels] = {500,500,500,500,500,500,500,500,500,500,500,500,500,500
 
 #define BYTESPERKILOBYTE 1024
 
-
-
 PIN_Config muxPinTable[] = {
     IOID_28 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX, //EN
     IOID_22 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX, //A3
@@ -307,6 +305,10 @@ bool transferDone = false;
 bool openDone = true;
 uint8_t counterDAC = 0;
 uint8_t counterDATA = 0;
+
+Semaphore_Handle bacpac_channel_mutex;
+Semaphore_Handle bacpac_channel_mailbox;
+char streaming_buffer[96];
 
 //Used to store the signal2 amplitude (max is 4095)
 struct {
@@ -508,7 +510,7 @@ void Sensors_init() {
     PIN_setOutputValue(muxPinHandle, IOID_12, 0); //S1
     PIN_setOutputValue(muxPinHandle, IOID_15, 0); //S0
 
-    DA_get_status(da_load(), "Loading Disk");
+    //DA_get_status(da_load(), "Loading Disk");
 }
 
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
@@ -660,7 +662,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 //        if(muxidx == channels){
 //            muxidx = 0; // reset counter back to zero, if it equals the number of channels
 //        }
-        storage_buffer_length = 0;
+        // storage_buffer_length = 0;
+        streaming_buffer_length = 0;
 
         float amp; uint8_t ampFactor = 3;
 
@@ -722,11 +725,11 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
             if (serializer_isFull()) serializer_setTimestamp((uint32_t)milliseconds);
             serializer_addImpedance(impedance);
-            if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
-                storage_buffer_length += serializer_serialize(storage_buffer);
+            if (serializer_isFull() && Semaphore_pend(bacpac_channel_mutex, 0)) {
+                streaming_buffer_length += serializer_serialize(streaming_buffer);
                 serializer_serializeReadable(uartBuf);
                 print(uartBuf);
-                Semaphore_post(storage_buffer_mailbox);
+                Semaphore_post(bacpac_channel_mailbox);
             }
 
             GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);

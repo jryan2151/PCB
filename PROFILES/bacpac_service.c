@@ -66,12 +66,6 @@
 * GLOBAL VARIABLES
 */
 
-Semaphore_Handle bacpac_channel_mutex;
-Semaphore_Handle bacpac_channel_success_mutex;
-Semaphore_Handle bacpac_channel_error_mutex;
-Semaphore_Handle bacpac_channel_initialize_mutex;
-Semaphore_Handle bacpac_channel_failure_mutex;
-
 // bacpac_service Service UUID
 CONST uint8_t bacpac_serviceUUID[ATT_BT_UUID_SIZE] =
 {
@@ -507,22 +501,6 @@ static bStatus_t bacpac_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
       // Copy pValue into the variable we point to from the attribute table.
       memcpy(pAttr->pValue + offset, pValue, len);
 
-      switch (pAttr->pValue[0]){
-      case 0x07:
-          Semaphore_post(bacpac_channel_initialize_mutex);
-          break;
-      case 0x08:
-          Semaphore_post(bacpac_channel_success_mutex);
-          // chunk success;
-          break;
-      case 0x09:
-          Semaphore_post(bacpac_channel_error_mutex);
-          // chunk failed
-          break;
-      case 0x0a:
-          Semaphore_post(bacpac_channel_failure_mutex);
-          break;
-      };
       // Only notify application if entire expected value is written
       if ( offset + len == BACPAC_SERVICE_TRANSFERRING_LEN)
         paramID = BACPAC_SERVICE_TRANSFERRING_ID;

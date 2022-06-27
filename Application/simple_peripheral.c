@@ -192,10 +192,7 @@ typedef struct
 Display_Handle dispHandle = NULL;
 //Semaphore_Handle bacpac_channel_mutex;
 Semaphore_Struct bacpac_channel_mutex_struct;
-Semaphore_Struct bacpac_channel_error_mutex_struct;
-Semaphore_Struct bacpac_channel_success_mutex_struct;
-Semaphore_Struct bacpac_channel_initialize_mutex_struct;
-Semaphore_Struct bacpac_channel_failure_mutex_struct;
+Semaphore_Struct bacpac_channel_mailbox_struct;
 char bleChannelBuf[BACPAC_SERVICE_CHANNEL_LEN];
 
 /*********************************************************************
@@ -226,12 +223,10 @@ static uint8_t scanRspData[] =
   // complete name
   0x10,   // length of this data
   GAP_ADTYPE_LOCAL_NAME_COMPLETE,
-  'B',
+  'D',
   'A',
-  'C',
-  'P',
-  'A',
-  'C',
+  'R',
+  'E',
   ' ',
   'D',
   'e',
@@ -240,6 +235,8 @@ static uint8_t scanRspData[] =
   'c',
   'e',
   ' ',
+  '0',
+  '0',
   '1',
 
   // connection interval range
@@ -276,7 +273,7 @@ static uint8_t advertData[] =
 };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPAC Device 1";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "DARE Device 001";
 
 
 /*********************************************************************
@@ -488,24 +485,10 @@ static void SimplePeripheral_init(void)
     Semaphore_construct(&bacpac_channel_mutex_struct, 0, &channelParams);
     bacpac_channel_mutex = Semaphore_handle(&bacpac_channel_mutex_struct);
 
-    Semaphore_Params channelParams2;
-    Semaphore_Params_init(&channelParams2);
-    channelParams2.mode = Semaphore_Mode_BINARY;
-    Semaphore_construct(&bacpac_channel_success_mutex_struct, 0, &channelParams2);
-    bacpac_channel_success_mutex = Semaphore_handle(&bacpac_channel_success_mutex_struct);
 
-    Semaphore_Params channelParams3;
-    Semaphore_Params_init(&channelParams3);
-    channelParams3.mode = Semaphore_Mode_BINARY;
-    Semaphore_construct(&bacpac_channel_error_mutex_struct, 0, &channelParams3);
-    bacpac_channel_error_mutex = Semaphore_handle(&bacpac_channel_error_mutex_struct);
+    Semaphore_construct(&bacpac_channel_mailbox_struct, 0, &channelParams);
+    bacpac_channel_mailbox = Semaphore_handle(&bacpac_channel_mailbox_struct);
 
-
-    Semaphore_construct(&bacpac_channel_initialize_mutex_struct, 0, &channelParams);
-    bacpac_channel_initialize_mutex = Semaphore_handle(&bacpac_channel_initialize_mutex_struct);
-
-    Semaphore_construct(&bacpac_channel_failure_mutex_struct, 0, &channelParams);
-    bacpac_channel_failure_mutex = Semaphore_handle(&bacpac_channel_failure_mutex_struct);
 
   // Create an RTOS queue for message from profile to be sent to app.
   appMsgQueue = Util_constructQueue(&appMsg);
@@ -725,7 +708,12 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
           continue;
       }
 
-      if (Semaphore_pend(bacpac_channel_initialize_mutex, BIOS_NO_WAIT)) {
+      if (Semaphore_pend(bacpac_channel_mailbox, BIOS_NO_WAIT)) {
+        // send loop for (int sent = 0; sent < bu)
+        Semaphore_post(bacpac_channel_mutex);
+      }
+
+      /*if (Semaphore_pend(bacpac_channel_initialize_mutex, BIOS_NO_WAIT)) {
           System_sprintf(outputBuffer, "initializing-read:%u write:%u\n\0", da_get_read_pos(), da_get_write_pos());
           print(outputBuffer);
           chunkSent = 0;
@@ -806,7 +794,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
 
              Task_sleep(SHORT_SLEEP_TIME);
              continue;
-          }
+          }*/
 
     uint32_t events;
 

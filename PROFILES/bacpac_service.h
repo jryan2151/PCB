@@ -49,12 +49,6 @@ extern "C"
  * INCLUDES
  */
 
-#include <ti/sysbios/knl/Semaphore.h>
-extern Semaphore_Handle bacpac_channel_mutex;
-extern Semaphore_Handle bacpac_channel_success_mutex;
-extern Semaphore_Handle bacpac_channel_error_mutex;
-extern Semaphore_Handle bacpac_channel_failure_mutex;
-extern Semaphore_Handle bacpac_channel_initialize_mutex;
 extern int remaining_data;
 
 /*********************************************************************
@@ -144,8 +138,6 @@ extern bStatus_t Bacpac_service_SetParameter(uint8_t param, uint16_t len, void *
  */
 extern bStatus_t Bacpac_service_GetParameter(uint8_t param, uint16_t *len, void *value);
 
-
-extern Semaphore_Handle bacpac_channel_mutex;
 /*********************************************************************
 *********************************************************************/
 
