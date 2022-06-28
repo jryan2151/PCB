@@ -120,22 +120,22 @@ int clockticks = 0;
 uint_fast16_t uartTxBufferOffset = 0; // ???
 
 int stutter = 0; //checks to make sure we dont stutter more than 3 times
-int COUNTERFORFUN = 0; //DELETE ME PLEASE 6/27/22
+//int COUNTERFORFUN = 0; //DELETE ME PLEASE 6/27/22
 
 uint8_t DEVICENUM = 1;
 const int channels = 16; //change to const in channels = 16; ???
 //int lastAmp[1] = {500}; //initialize to the value you want to start the signal2 at (must be as long as channel)
-static int MUXFREQ = 600;  //600 (maybe not good for bluetooth so probably don't change ??? //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
+static int MUXFREQ = 400;  //600 (maybe not good for bluetooth so probably don't change ??? //Switching frequency (this equals the number of channels to read each second). Must be less than half of DAC frequency (~line 320).
 
 static int inc = 0;
 static int checker; //this is to fix the end line
 
 
 // CAP'N'S LOG: ADDED BY GABE
-static float PERIOD_OF_TIME = 1.67;
+static float PERIOD_OF_TIME = 2.53;
 float milliseconds = 0;
 uint8_t sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor
-int taps[8] = {1,7,14,31,60,125,200,250}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
+int taps[8] = {1,7,13,31,60,125,200,250}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
 int currentTap[channels] = {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5}; //stores the tap value for each sensor so we can have the right tap for each read.
 int lowCuts[8] = {0,1925,1700,1650,1500,1750,0,0}; // the adc value at which we will switch to the next tap value because the gain is getting too low
 int highCuts[8] = {0,4000,2600,2700,2400,2250,2450,0}; // the adc value at which we will switch to the previous tap value because the gain is getting too high
@@ -672,25 +672,36 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         }
 
         ////////// ADC Read ///////////
-        int res1; uint32_t adcVal;
+        int res1; uint32_t adcVal; uint16_t adcSum = 0;
         res1 = ADC_convert(adc, &adcValue);
-        if (res1 == ADC_STATUS_SUCCESS) {
-            adcVal = ADC_convertRawToMicroVolts(adc,adcValue);
+        if (res1 == ADC_STATUS_SUCCESS) { // we are reading the adc value twice and taking the sum in order to decrease frequency with same values.
+            adcSum = adcValue;
+            res1 = ADC_convert(adc, &adcValue); // checking if adc values are being read properly
+            if (res1 == ADC_STATUS_SUCCESS) {
+                adcSum += adcValue;
+                adcValue = adcSum/2;
+            }
+            else {
+                adcValue = adcSum;
+            }
         }
-        {// AUTOMATION CODE FOR CALLIBRATION THIS SECTION
-        if (muxidx == 0) {
-            System_sprintf(uartBuf, "%u,%u,", (uint32_t)milliseconds, sensorValues[muxmod]);
-            print(uartBuf);
+        else {
+            res1 = ADC_convert(adc, &adcValue);
         }
-        if (muxidx < 15) {
-            System_sprintf(uartBuf, "%u,", adcValue);
-        print(uartBuf);
-        }
-        else{
-            System_sprintf(uartBuf, "%u\n\r", adcValue);
-            print(uartBuf);
-        }
-        }
+//        {// AUTOMATION CODE FOR CALLIBRATION THIS SECTION
+//        if (muxidx == 0) {
+//            System_sprintf(uartBuf, "%u,%u,", (uint32_t)milliseconds, sensorValues[muxmod]);
+//            print(uartBuf);
+//        }
+//        if (muxidx < 15) {
+//            System_sprintf(uartBuf, "%u,", adcValue);
+//        print(uartBuf);
+//        }
+//        else{
+//            System_sprintf(uartBuf, "%u\n\r", adcValue);
+//            print(uartBuf);
+//        }
+//        }
         txBuffer1[0] = 0; //hi byte
         txBuffer1[1] = 0; //lower 2 bytes
         //txBuffer2[0] = Signal.ampDC >> 8; //hi byte
@@ -712,6 +723,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             if (adcValue < 400){
                 impedance = 49999.99;
             }
+
             else if (sensorValues[muxmod] == 7){
                        impedance = fabs((-189.4 * adcValue + 518778)/(adcValue + -929.0));
                    }
@@ -730,6 +742,9 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
                    else if (sensorValues[muxmod] == 200){
                        impedance = fabs((-66.6 * adcValue + 6980902)/(adcValue + -922.7));
                    }
+            if (impedance > 49999.99){
+                impedance = 49999.99;
+            }
 //            System_sprintf(uartBuf, "%u, %u, %u, %u, %u, %u \n\r", sensorValues[muxmod], adcValue, lowCuts[currentTap[muxmod]], highCuts[currentTap[muxmod]], currentTap[muxmod], COUNTERFORFUN);
 
 //
@@ -737,8 +752,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             serializer_addImpedance(impedance);
             if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
                 storage_buffer_length += serializer_serialize(storage_buffer);
-//                serializer_serializeReadable(uartBuf);
-//                print(uartBuf);
+                serializer_serializeReadable(uartBuf);
+                print(uartBuf);
                 Semaphore_post(storage_buffer_mailbox);
             }
 
@@ -762,7 +777,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             }
             else if (currentTap[muxmod] < 1)
             {
-                COUNTERFORFUN++;
+//                COUNTERFORFUN++;
                 currentTap[muxmod] = 1;
                 sensorValues[muxmod] = taps[currentTap[muxmod]];
             }
@@ -781,6 +796,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
     }
     else if (counterDAC == 3) {
         ReplaceTheMess_GS(muxidx);
+        adcValue = 0;
+        impedance = 0;
 
         ////////// Set potentiometer value for next read //////////
         txBuffer3[0] = 0;
@@ -798,6 +815,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
 void Sensors_start_timers() {
     milliseconds = 0;
+    muxidx = 0;
     GPTimerCC26XX_start(hDACTimer);
 }
 
