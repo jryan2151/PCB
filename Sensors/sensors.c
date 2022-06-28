@@ -135,10 +135,10 @@ static int checker; //this is to fix the end line
 static float PERIOD_OF_TIME = 1.67;
 float milliseconds = 0;
 uint8_t sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor
-int taps[8] = {1,24,32,45,60,125,200,250}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
+int taps[8] = {1,7,14,31,60,125,200,250}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
 int currentTap[channels] = {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5}; //stores the tap value for each sensor so we can have the right tap for each read.
-int lowCuts[8] = {0,1900,1950,1800,1250,750,0,0}; // the adc value at which we will switch to the next tap value because the gain is getting too low
-int highCuts[8] = {0,4000,2500,2500,2500,2250,1050,0}; // the adc value at which we will switch to the previous tap value because the gain is getting too high
+int lowCuts[8] = {0,1925,1700,1650,1500,1750,0,0}; // the adc value at which we will switch to the next tap value because the gain is getting too low
+int highCuts[8] = {0,4000,2600,2700,2400,2250,2450,0}; // the adc value at which we will switch to the previous tap value because the gain is getting too high
 // END OF CAP'N'S LOG
 
 
@@ -712,28 +712,24 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             if (adcValue < 400){
                 impedance = 49999.99;
             }
-
-            else if (sensorValues[muxmod] == 24){
-                impedance = fabs((-196.1 * adcValue + 580232)/(adcValue + -499.5));
-            }
-            else if (sensorValues[muxmod] == 32){
-                impedance = fabs((-201.8 * adcValue + 740328)/(adcValue + -488.9));
-            }
-            else if (sensorValues[muxmod] == 45){
-                impedance = fabs((-30.8 * adcValue + 653589)/(adcValue + -533.8));
-            }
-            else if (sensorValues[muxmod] == 60){
-                impedance = fabs((-277.9 * adcValue + 1409465)/(adcValue + -467.8));
-            }
-            else if (sensorValues[muxmod] == 125){
-                impedance = fabs((-436.1 * adcValue + 2846885)/(adcValue + -459.0));
-            }
-            else if (sensorValues[muxmod] == 200){
-                impedance = fabs((881.1 * adcValue + 2562038)/(adcValue + -493.5));
-            }
-            if (impedance > 49999.99){
-                impedance = 49999.99;
-            }
+            else if (sensorValues[muxmod] == 7){
+                       impedance = fabs((-189.4 * adcValue + 518778)/(adcValue + -929.0));
+                   }
+                   else if (sensorValues[muxmod] == 13){
+                       impedance = fabs((-206.0 * adcValue + 764491)/(adcValue + -919.3));
+                   }
+                   else if (sensorValues[muxmod] == 31){
+                       impedance = fabs((-213.7 * adcValue + 1407631)/(adcValue + -918.7));
+                   }
+                   else if (sensorValues[muxmod] == 60){
+                       impedance = fabs((-221.1 * adcValue + 2427576)/(adcValue + -917.6));
+                   }
+                   else if (sensorValues[muxmod] == 125){
+                       impedance = fabs((-307.9 * adcValue + 4850328)/(adcValue + -916.3));
+                   }
+                   else if (sensorValues[muxmod] == 200){
+                       impedance = fabs((-66.6 * adcValue + 6980902)/(adcValue + -922.7));
+                   }
 //            System_sprintf(uartBuf, "%u, %u, %u, %u, %u, %u \n\r", sensorValues[muxmod], adcValue, lowCuts[currentTap[muxmod]], highCuts[currentTap[muxmod]], currentTap[muxmod], COUNTERFORFUN);
 
 //
