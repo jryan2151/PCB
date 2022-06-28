@@ -132,7 +132,7 @@ static int checker; //this is to fix the end line
 
 
 // CAP'N'S LOG: ADDED BY GABE
-static float PERIOD_OF_TIME = 2.53;
+static float PERIOD_OF_TIME = 2.56580556;
 float milliseconds = 0;
 uint8_t sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor
 int taps[8] = {1,7,13,31,60,125,200,250}; // The discrete tap values that we want to use, the 1 and 155 on the ends are for error handling and should never actually be used
@@ -725,23 +725,23 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
             }
 
             else if (sensorValues[muxmod] == 7){
-                       impedance = fabs((-189.4 * adcValue + 518778)/(adcValue + -929.0));
-                   }
-                   else if (sensorValues[muxmod] == 13){
-                       impedance = fabs((-206.0 * adcValue + 764491)/(adcValue + -919.3));
-                   }
-                   else if (sensorValues[muxmod] == 31){
-                       impedance = fabs((-213.7 * adcValue + 1407631)/(adcValue + -918.7));
-                   }
-                   else if (sensorValues[muxmod] == 60){
-                       impedance = fabs((-221.1 * adcValue + 2427576)/(adcValue + -917.6));
-                   }
-                   else if (sensorValues[muxmod] == 125){
-                       impedance = fabs((-307.9 * adcValue + 4850328)/(adcValue + -916.3));
-                   }
-                   else if (sensorValues[muxmod] == 200){
-                       impedance = fabs((-66.6 * adcValue + 6980902)/(adcValue + -922.7));
-                   }
+                        impedance = fabs((-192.5 * adcValue + 548729)/(adcValue + -957.1));
+                    }
+                    else if (sensorValues[muxmod] == 13){
+                        impedance = fabs((-210.4 * adcValue + 810539)/(adcValue + -948.6));
+                    }
+                    else if (sensorValues[muxmod] == 31){
+                        impedance = fabs((-201.3 * adcValue + 1454645)/(adcValue + -951.4));
+                    }
+                    else if (sensorValues[muxmod] == 60){
+                        impedance = fabs((-224.0 * adcValue + 2557733)/(adcValue + -950.7));
+                    }
+                    else if (sensorValues[muxmod] == 125){
+                        impedance = fabs((-337.6 * adcValue + 5187563)/(adcValue + -946.7));
+                    }
+                    else if (sensorValues[muxmod] == 200){
+                        impedance = fabs((13.1 * adcValue + 7253174)/(adcValue + -953.2));
+                    }
             if (impedance > 49999.99){
                 impedance = 49999.99;
             }
