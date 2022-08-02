@@ -11,6 +11,6 @@
 
 #include <stdint.h>
 
-float ImpedanceCalc(uint16_t tapNumber, uint16_t adc, int tapsArray [255]);
+float ImpedanceCalc(uint8_t tapNumber, uint16_t adc);
 
 #endif
