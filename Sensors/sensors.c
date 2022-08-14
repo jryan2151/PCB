@@ -128,6 +128,7 @@ static int MUXFREQ = 800;  //600 (maybe not good for bluetooth so probably don't
 
 static int inc = 0;
 static int checker; //this is to fix the end line
+uint8_t streaming_buffer_length = 0;
 
 
 // CAP'N'S LOG: ADDED BY GABE

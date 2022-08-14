@@ -482,7 +482,7 @@ static void SimplePeripheral_init(void)
     Semaphore_Params channelParams;
     Semaphore_Params_init(&channelParams);
     channelParams.mode = Semaphore_Mode_BINARY;
-    Semaphore_construct(&bacpac_channel_mutex_struct, 0, &channelParams);
+    Semaphore_construct(&bacpac_channel_mutex_struct, 1, &channelParams);
     bacpac_channel_mutex = Semaphore_handle(&bacpac_channel_mutex_struct);
 
 
@@ -709,7 +709,16 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
       }
 
       if (Semaphore_pend(bacpac_channel_mailbox, BIOS_NO_WAIT)) {
-        // send loop for (int sent = 0; sent < bu)
+          memset(bleChannelBuf, 0, BACPAC_SERVICE_CHANNEL_LEN);
+
+          for (int sent = 0; sent < streaming_buffer_length; ) {
+              uint8_t sendLength = (streaming_buffer_length - sent > BACPAC_SERVICE_CHANNEL_LEN) ? BACPAC_SERVICE_CHANNEL_LEN : streaming_buffer_length - sent;
+              memcpy(bleChannelBuf, streaming_buffer + sent, sendLength);
+              Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID, BACPAC_SERVICE_CHANNEL_LEN, bleChannelBuf);
+              Task_sleep(SHORT_SLEEP_TIME);
+              sent+= sendLength;
+          }
+
         Semaphore_post(bacpac_channel_mutex);
       }
 
