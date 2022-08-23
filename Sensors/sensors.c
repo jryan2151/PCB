@@ -24,7 +24,7 @@
  * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
  * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
  * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OFz USE, DATA, OR PROFITS;
  * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
@@ -124,8 +124,8 @@ char* uartBuf; // used to store data that will then be output to the serial moni
 uint8_t stutter = 0; //checks to make sure we don't stutter more than 3 times in one cycle
 const uint8_t channels = 16; //the number of channels corresponds to the number of sensors and should always be 16.
 static int MUXFREQ = 800;  // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
-const uint8_t DACTIMER_CASE_COUNT = 3;
-static float PERIOD_OF_TIME = 2.57546812; // time it takes to complete one round through the DACtimercallback
+const uint8_t DACTIMER_CASE_COUNT = 6;
+static float PERIOD_OF_TIME = 1.25511863; // time it takes to complete one round through the DACtimercallback
 uint8_t res1 = 0; // confirms an adcRead read properly
 uint8_t counterCYCLE = 0; // counts the number of DACtimerCallbacks between every output
 uint8_t successImpAdd[channels]= {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // records the number of successful impedance values added to impSum for that cycle
@@ -177,7 +177,7 @@ uint8_t rxBuffer3[1];          // Receive buffer for the potentiometer
 uint8_t txBuffer3[2];          // Transmit buffer for the potentiometer
 bool transferDone = false;     // signify the I2C has finished for this cycle
 bool openDone = true;          // signify the I2C has opened successfully in order to transmit data
-uint8_t counterDAC = 1;        // declaring the counterDac used in DACtimerCallback function
+uint8_t counterDAC = 0;        // declaring the counterDac used in DACtimerCallback function
 
 //Used to store the signal2 current amplitude (max is 4095)
 struct {
@@ -363,21 +363,16 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
 
 // this is where the bulk of the functionality of this file takes place.
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
-    // Look at increasing cases and/or frequency to conserve as much power as possible. less time mux is on.
 
-//    if (counterDAC == 0) {
-////        PIN_setOutputValue(muxPinHandle, IOID_28, 0);
-//        muxPower(1);
-//        counterDAC += 1;
-//    }
-    if (counterDAC == 1){
-                                        ////////// ADC Read  ///////////
+    if (counterDAC == 0) {
+
+        ////////// ADC Read  ///////////
         res1 = ADC_convert(adc, &adcValue); // read the current adc Value
         switch (res1) {
-            case ADC_STATUS_SUCCESS:
-                break;
-            default:
-                res1 = ADC_convert(adc, &adcValue);
+        case ADC_STATUS_SUCCESS:
+            break;
+        default:
+            res1 = ADC_convert(adc, &adcValue);
         }
 
         // turn off MUX to conserve POWER
@@ -385,22 +380,10 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
         storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes.
 
-        counterDAC++; // increments DACtimerCallback counter to 2
-
-        // calculate impedance unless we stutter
-//        if ( (adcValue < 2950) || (stutter > 3) ) {
-//            if (adcValue < 400){
-//                impedance = 49999.99; // if our adcValue is too low. We don't want to interpret it as valid data.
-//                }
-//            else {
-//                impedance = impedanceCalc(sensorValues[muxmod], adcValue);
-//            }
-//        }
+        counterDAC += 1;
     }
-
-    else if (counterDAC == 2){
-
-//         AUTOCAL CODE FOR CALLIBRATION
+    if (counterDAC == 1){
+        //         AUTOCAL CODE FOR CALLIBRATION
         if (CALIBRATE){
             if (muxmod == 0) {
                 System_sprintf(uartBuf, "%u,%u,%u,", (uint32_t)milliseconds, AUTOMATE, adcValue);
@@ -425,138 +408,165 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
                 muxmod = 0;// reset counter back to zero if it equals the number of channels
             }
         }
-//                                        ////////// ADC STUTTER ////////// -- JR
-//
-//        /*Run the normal process (Calculate and write impedance to SD card) if adc Value is below the upper fence, or if we have already stuttered 3 times */
         else {
-
-                                       ////////// CONTINUE TO CALCULATE IMPEDANCE //////////
-
+                                               ////////// CALCULATE IMPEDANCE //////////
+            if ( (adcValue < 2950) || (stutter > 3) ) {
+                if (adcValue < 400){
+                    impedance = 49999.99; // if our adcValue is too low. We don't want to interpret it as valid data.
+                }
+                else {
+                    impedance = impedanceCalc(sensorValues[muxmod], adcValue);
+                }
                 if (impedance > 49999.99){
                     impedance = 49999.99; // we only need impedance values within a certain range. This is our cap.
                 }
-
                 if (res1 == ADC_STATUS_SUCCESS) {
                     impSum[muxmod] += impedance; // if ,adc read correctly we want to add the calculated impedance to a sum to be averaged later
                     successImpAdd[muxmod] += 1; // increment number of successful impedance values added this round
                 }
-
-                                       ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
-                if (adcValue < LOWCUTSHIGH) {
-                    true_error = LOWCUTSHIGH - adcValue;
-
-                    adjust_tap = round(true_error * pow(sensorValues[muxmod],0.7)/ kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
-
-                    if(adjust_tap > 20 ) adjust_tap = 20;     //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                    if(adjust_tap < 0) adjust_tap = 0;    //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                }
-                else if (adcValue > HIGHCUTSHIGH) {
-
-                    true_error = HIGHCUTSHIGH - adcValue;
-                    adjust_tap = round(true_error *pow(sensorValues[muxmod],0.7)/ kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
-
-                    if(adjust_tap > 0 ) adjust_tap = 0;     //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                    if(adjust_tap < -20) adjust_tap = -20;//Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                }
-                if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap<2) {
-                    if (adcValue < LOWCUTSLOW) {
-                        sensorValues[muxmod]++; // move up a tap
-                    }
-                    else if (adcValue > HIGHCUTSLOW) {
-                        sensorValues[muxmod]--; // move down a tap
-                    }
-                }
-                else if (adcValue < LOWCUTSHIGH || adcValue > HIGHCUTSHIGH){
-                //                   adjust_tap += ki_value * (i_error[muxmod] + target_adc - adcValue); // this is the integrator term, adjusting for small amounts of constant error
-                sensorValues[muxmod] = sensorValues[muxmod] + adjust_tap;
-                //                 last_error[muxmod] = true_error;
-                //                   i_error[muxmod] += true_error;
-                                   // add integrator anti-windup here
-                }
-
-             // PID controller
-//
-
-//             true_error = target_adc - adcValue;
-//             adjust_tap = true_error * kp_value + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
-//             sensorValues[muxmod] = sensorValues[muxmod]+ adjust_tap;
-//             last_error[muxmod] = true_error;
-//             i_error[muxmod] += true_error;
-
-                if (sensorValues[muxmod] > TAP_HIGHEST_VALUE){ // if we are out of our tap value range we want to bring it back.
-                    sensorValues[muxmod] = TAP_HIGHEST_VALUE;
-                  //IF we have an Integral Overrun - reset it here. This is where we'll find it most likely to be pinned (these two walls)
-                }
-                else if (sensorValues[muxmod] < TAP_LOWEST_VALUE){ // if we are out of our tap value range we want to bring it back.
-                    sensorValues[muxmod] = TAP_LOWEST_VALUE;
-                }
-              // increment the cycle count
-                if ((adcValue < 2950) || (stutter > 3)) {
-                    if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0) {
-                        counterCYCLE++;
-                    }
-
-                    if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT) {
-                        impedance = impSum[muxmod]/successImpAdd[muxmod];
-                        impSum[muxmod] = 0;
-                        successImpAdd[muxmod] = 0;
-                        if (muxmod == (channels-1)) counterCYCLE = 0;
-
-                                               /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
-                        if (serializer_isFull()) serializer_setTimestamp((uint16_t)milliseconds); // checking if 16 impedance values have been added to the array
-                        serializer_addImpedance(impedance); // adding the current impedance value to the serializer array
-                        if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
-                            storage_buffer_length += serializer_serialize(storage_buffer);
-//                            serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-//                            print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
-                            Semaphore_post(storage_buffer_mailbox); // writing to the sd card
-                        }
-                    }
-
-                    GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
-
-//                                        //////// INCREMENT SENSOR ///////
-//              /*
-//               * IMPORTANT: this is where the sensor we are dealing with changes. i.e. from sensor 1 to sensor 2.  The whole process repeats here.
-//               */
-                    muxmod++;
-                    if(muxmod == channels){
-                        muxmod = 0;// reset counter back to zero if it equals the number of channels
-                    }
-                    stutter = 0;
-                }
-                else {
-                    stutter++;
-                }
+            }
         }
-        counterDAC++; // increments DACtimerCallback counter to 3
+        counterDAC++; // increments DACtimerCallback counter to 2
+    }
+
+    else if (counterDAC == 2){
+        ////         AUTOCAL CODE FOR CALLIBRATION
+    if (CALIBRATE){
+    }
+    else {
+        ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
+        // P Controller
+        if (adcValue < LOWCUTSHIGH) {
+            true_error = LOWCUTSHIGH - adcValue;
+
+            adjust_tap = round(true_error * pow(sensorValues[muxmod],0.7)/ kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+
+            if(adjust_tap > 20 ) adjust_tap = 20;     //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+            if(adjust_tap < 0) adjust_tap = 0;    //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+        }
+        else if (adcValue > HIGHCUTSHIGH) {
+
+            true_error = HIGHCUTSHIGH - adcValue;
+            adjust_tap = round(true_error *pow(sensorValues[muxmod],0.7)/ kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+
+            if(adjust_tap > 0 ) adjust_tap = 0;     //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+            if(adjust_tap < -20) adjust_tap = -20;//Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+        }
+        if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap<2) {
+            if (adcValue < LOWCUTSLOW) {
+                sensorValues[muxmod]++; // move up a tap
+            }
+            else if (adcValue > HIGHCUTSLOW) {
+                sensorValues[muxmod]--; // move down a tap
+            }
+        }
+        else if (adcValue < LOWCUTSHIGH || adcValue > HIGHCUTSHIGH){
+            //                   adjust_tap += ki_value * (i_error[muxmod] + target_adc - adcValue); // this is the integrator term, adjusting for small amounts of constant error
+            sensorValues[muxmod] = sensorValues[muxmod] + adjust_tap;
+            //                 last_error[muxmod] = true_error;
+            //                   i_error[muxmod] += true_error;
+            // add integrator anti-windup here
+        }
+        if (sensorValues[muxmod] > TAP_HIGHEST_VALUE){ // if we are out of our tap value range we want to bring it back.
+            sensorValues[muxmod] = TAP_HIGHEST_VALUE;
+            //IF we have an Integral Overrun - reset it here. This is where we'll find it most likely to be pinned (these two walls)
+        }
+        else if (sensorValues[muxmod] < TAP_LOWEST_VALUE){ // if we are out of our tap value range we want to bring it back.
+            sensorValues[muxmod] = TAP_LOWEST_VALUE;
+        }
+
+        // PID controller
+        //
+
+        //             true_error = target_adc - adcValue;
+        //             adjust_tap = true_error * kp_value + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+        //             sensorValues[muxmod] = sensorValues[muxmod]+ adjust_tap;
+        //             last_error[muxmod] = true_error;
+        //             i_error[muxmod] += true_error;
+    }
+
+    counterDAC++; // increments DACtimerCallback counter to 3
     }
     else if (counterDAC == 3) {
-                            /////////// RESET POTENTIOMETER AND MUX FOR NEXT SENSOR READ ///////////
-        muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
-
-        // To prevent values carrying over from cycle to cycle.
-        adcValue = 0;
-        impedance = 0;
-
-        // Set potentiometer value for next read //
-        txBuffer3[0] = 0; // 8 bit device so we don't need the high byte
-        // AUTOCAL CODE. SWITCH muxmod with AUTOMATE
+        //
+        ////         AUTOCAL CODE FOR CALLIBRATION
         if (CALIBRATE){
-            txBuffer3[1] = AUTOMATE;
         }
         else {
-            txBuffer3[1] = sensorValues[muxmod]; // write to the potentiometer
+
+            // increment the cycle count unless it stuttered
+            if ((adcValue < 2950) || (stutter > 3)) {\
+                if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0) {
+                    counterCYCLE++;
+                }
+
+            if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT) {
+                impedance = impSum[muxmod]/successImpAdd[muxmod];
+                impSum[muxmod] = 0;
+                successImpAdd[muxmod] = 0;
+                if (muxmod == (channels-1)) counterCYCLE = 0;
+
+                //                        System_sprintf(uartBuf, "%u,%u\n\r", muxmod, (uint16_t) impedance);
+                //                        print(uartBuf);
+
+                /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
+                if (serializer_isFull()) serializer_setTimestamp((uint16_t)milliseconds); // checking if 16 impedance values have been added to the array
+                serializer_addImpedance(impedance); // adding the current impedance value to the serializer array
+                if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
+                    storage_buffer_length += serializer_serialize(storage_buffer);
+                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
+                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+                    Semaphore_post(storage_buffer_mailbox); // writing to the sd card
+                }
+            }
+
+            GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
+
+            //////// INCREMENT SENSOR ///////
+            /*
+             * IMPORTANT: this is where the sensor we are dealing with changes. i.e. from sensor 1 to sensor 2.  The whole process repeats here.
+             */
+            muxmod++;
+            if(muxmod == channels){
+                muxmod = 0;// reset counter back to zero if it equals the number of channels
+            }
+            stutter = 0;
+            }
+            else {
+                stutter++;
+            }
         }
+        counterDAC++;
+    }
+    else if (counterDAC == 4) {
+        /////////// RESET MUX FOR NEXT  READ ///////////
+        muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
 
-        // To prevent values carrying over from cycle to cycle, we reset adcValue and impedance
-        I2C_transfer(I2Chandle, &i2cTrans3);
+        /////////// RESET POTENTIOMETER  FOR NEXT SENSOR READ ///////////
+        // To prevent values carrying over from cycle to cycle.
+                adcValue = 0;
+                impedance = 0;
 
+                // Set potentiometer value for next read //
+                txBuffer3[0] = 0; // 8 bit device so we don't need the high byte
+                // AUTOCAL CODE. SWITCH muxmod with AUTOMATE
+                if (CALIBRATE){
+                    txBuffer3[1] = AUTOMATE;
+                }
+                else {
+                    txBuffer3[1] = sensorValues[muxmod]; // write to the potentiometer
+                }
+
+                // To prevent values carrying over from cycle to cycle, we reset adcValue and impedance
+                I2C_transfer(I2Chandle, &i2cTrans3);
+        counterDAC++;
+    }
+    else if (counterDAC == 5) {
         /// Updates milliseconds variable (time stamp) //
         milliseconds = milliseconds + PERIOD_OF_TIME; // End of a cycle. Update current time stamp.
 
         muxPower(1); // turn on the MUX for the next read
-        counterDAC = 1; // Reset DACtimerCallback to case 0
+        counterDAC = 0; // Reset DACtimerCallback to case 0
         }
 }
 
