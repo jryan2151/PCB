@@ -107,7 +107,6 @@ EXAMPLE OUTPUT:
 #include "Serializer.h"
 #include "sensors.h"
 #include "ImpedanceCalc.h"
-#include "MuxPinReset.h"
 
 /////////////////////////// pin configuration ///////////////////////
 /* Pin driver handles */
@@ -123,20 +122,20 @@ float impedance = 0; // impedance (resistance) calculated for the current sensor
 char* uartBuf; // used to store data that will then be output to the serial monitor
 uint8_t stutter = 0; //checks to make sure we don't stutter more than 3 times in one cycle
 const uint8_t channels = 16; //the number of channels corresponds to the number of sensors and should always be 16.
-static int MUXFREQ = 800;  // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
-const uint8_t DACTIMER_CASE_COUNT = 6;
-static float PERIOD_OF_TIME = 1.25511863; // time it takes to complete one round through the DACtimercallback
+static int MUXFREQ = 400;  // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
+const uint8_t DACTIMER_CASE_COUNT = 3;
+static float PERIOD_OF_TIME = 1.23684455; // time it takes to complete one round through the DACtimercallback
 uint8_t res1 = 0; // confirms an adcRead read properly
 uint8_t counterCYCLE = 0; // counts the number of DACtimerCallbacks between every output
 uint8_t successImpAdd[channels]= {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // records the number of successful impedance values added to impSum for that cycle
 float impSum[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // compiles impedance values
 float milliseconds = 0; // current time stamp
 int sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor (the tap value is a measure of the resistance of the potentiometer (variable resistor) in the circuit)
-const uint16_t HIGHCUTSHIGH = 2770; // high tap values upper bound
-const uint16_t LOWCUTSHIGH = 2730; // high tap values lower bound
-const uint16_t HIGHCUTSLOW = 2280; // low tap values upper bound
-const uint16_t LOWCUTSLOW = 2220; // low tap values lower bound
-const uint8_t CALIBRATION_LIMIT = 8; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
+const uint16_t HIGHCUTSHIGH = 2760; // high tap values upper bound
+const uint16_t LOWCUTSHIGH = 2740; // high tap values lower bound
+const uint16_t HIGHCUTSLOW = 2400; // low tap values upper bound
+const uint16_t LOWCUTSLOW = 2200; // low tap values lower bound
+const uint8_t CALIBRATION_LIMIT = 9; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
 const uint8_t TAP_HIGHEST_VALUE = 250; // highest tap value possible
 const uint8_t TAP_LOWEST_VALUE = 2; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
@@ -152,6 +151,7 @@ const float ki_value = 0.0;
 //uint8_t i_error[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 const bool CALIBRATE = false;
 uint8_t AUTOMATE = 1; // AUTOCAL - increments tap.
+uint8_t countMyCase = 0;
 
 
  /* Starting sector to write/read to on the SD card*/
@@ -365,6 +365,8 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask) {
 
     if (counterDAC == 0) {
+//        countMyCase = 0;
+//        countMyCase++;
 
         ////////// ADC Read  ///////////
         res1 = ADC_convert(adc, &adcValue); // read the current adc Value
@@ -380,10 +382,11 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
         storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes.
 
-        counterDAC += 1;
-    }
-    if (counterDAC == 1){
+//        counterDAC += 1;
+//    }
+//    if (counterDAC == 1){
         //         AUTOCAL CODE FOR CALLIBRATION
+//        countMyCase++;
         if (CALIBRATE){
             if (muxmod == 0) {
                 System_sprintf(uartBuf, "%u,%u,%u,", (uint32_t)milliseconds, AUTOMATE, adcValue);
@@ -426,10 +429,11 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
                 }
             }
         }
-        counterDAC++; // increments DACtimerCallback counter to 2
+        counterDAC+=2; // increments DACtimerCallback counter to 2
     }
 
     else if (counterDAC == 2){
+//        countMyCase++;
         ////         AUTOCAL CODE FOR CALLIBRATION
     if (CALIBRATE){
     }
@@ -485,37 +489,43 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         //             i_error[muxmod] += true_error;
     }
 
-    counterDAC++; // increments DACtimerCallback counter to 3
-    }
-    else if (counterDAC == 3) {
+
+//    counterDAC++; // increments DACtimerCallback counter to 3
+//    }
+//    else if (counterDAC == 3) {
+//        countMyCase++;
         //
         ////         AUTOCAL CODE FOR CALLIBRATION
         if (CALIBRATE){
         }
         else {
+            System_sprintf(uartBuf, "%u,%u,%u,%u\n\r", muxmod,sensorValues[muxmod], adcValue,(uint16_t)impedance);
+            print(uartBuf);
 
             // increment the cycle count unless it stuttered
-            if ((adcValue < 2950) || (stutter > 3)) {\
+            if ((adcValue < 2950) || (stutter > 3)) {
                 if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0) {
                     counterCYCLE++;
                 }
+//            System_sprintf(uartBuf, "%u\n\r", (uint16_t) milliseconds);
+//            print(uartBuf);
 
-            if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT) {
-                impedance = impSum[muxmod]/successImpAdd[muxmod];
-                impSum[muxmod] = 0;
-                successImpAdd[muxmod] = 0;
-                if (muxmod == (channels-1)) counterCYCLE = 0;
+                if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT) {
+                    impedance = impSum[muxmod]/successImpAdd[muxmod];
+                    impSum[muxmod] = 0;
+                    successImpAdd[muxmod] = 0;
+                    if (muxmod == (channels-1)) counterCYCLE = 0;
 
-                //                        System_sprintf(uartBuf, "%u,%u\n\r", muxmod, (uint16_t) impedance);
-                //                        print(uartBuf);
+//           ` System_sprintf(uartBuf, "%u\n\r", (uint16_t) milliseconds);
+//           ` print(uartBuf);
 
                 /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
                 if (serializer_isFull()) serializer_setTimestamp((uint16_t)milliseconds); // checking if 16 impedance values have been added to the array
                 serializer_addImpedance(impedance); // adding the current impedance value to the serializer array
                 if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
                     storage_buffer_length += serializer_serialize(storage_buffer);
-                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+//                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
+//                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
                     Semaphore_post(storage_buffer_mailbox); // writing to the sd card
                 }
             }
@@ -536,9 +546,10 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
                 stutter++;
             }
         }
-        counterDAC++;
+        counterDAC+=2;
     }
     else if (counterDAC == 4) {
+//        countMyCase++;
         /////////// RESET MUX FOR NEXT  READ ///////////
         muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
 
@@ -559,14 +570,18 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 
                 // To prevent values carrying over from cycle to cycle, we reset adcValue and impedance
                 I2C_transfer(I2Chandle, &i2cTrans3);
-        counterDAC++;
-    }
-    else if (counterDAC == 5) {
+//        counterDAC++;
+//    }
+//    else if (counterDAC == 5) {
+//        countMyCase++;
+//        System_sprintf(uartBuf, "%u\n\r", countMyCase);
+//        print(uartBuf);
         /// Updates milliseconds variable (time stamp) //
         milliseconds = milliseconds + PERIOD_OF_TIME; // End of a cycle. Update current time stamp.
 
         muxPower(1); // turn on the MUX for the next read
         counterDAC = 0; // Reset DACtimerCallback to case 0
+
         }
 }
 

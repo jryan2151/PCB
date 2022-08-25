@@ -2,8 +2,8 @@
  * Created by Jared Brinkman
  * Date: 7/22/2022
  *
- * This file will change for every board that is calibrated.
- * Will hold 255 Impedance equations
+ * This file will change for every board calibrated.
+ * It will hold 255 Impedance equations.
  */
 
 #include "ImpedanceCalc.h"
