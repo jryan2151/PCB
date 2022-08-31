@@ -124,15 +124,15 @@ uint8_t stutter = 0; //checks to make sure we don't stutter more than 3 times in
 const uint8_t channels = 16; //the number of channels corresponds to the number of sensors and should always be 16.
 static int MUXFREQ = 800;  // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
 const uint8_t DACTIMER_CASE_COUNT = 3;
-static float PERIOD_OF_TIME = 1.23684455; // time it takes to complete one round through the DACtimercallback
+static float PERIOD_OF_TIME = 1.2522821; // time it takes to complete one round through the DACtimercallback
 uint8_t res1 = 0; // confirms an adcRead read properly
 uint8_t counterCYCLE = 0; // counts the number of DACtimerCallbacks between every output
 uint8_t successImpAdd[channels]= {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // records the number of successful impedance values added to impSum for that cycle
 float impSum[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // compiles impedance values
 float milliseconds = 0; // current time stamp
 int sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor (the tap value is a measure of the resistance of the potentiometer (variable resistor) in the circuit)
-const uint16_t HIGHCUTSHIGH = 2760; // high tap values upper bound
-const uint16_t LOWCUTSHIGH = 2740; // high tap values lower bound
+const uint16_t HIGHCUTSHIGH = 2770; // high tap values upper bound
+const uint16_t LOWCUTSHIGH = 2730; // high tap values lower bound
 const uint16_t HIGHCUTSLOW = 2500; // low tap values upper bound
 const uint16_t LOWCUTSLOW = 2250; // low tap values lower bound
 const uint8_t CALIBRATION_LIMIT = 8; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
@@ -529,8 +529,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
                 serializer_addImpedance(impedance); // adding the current impedance value to the serializer array
                 if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
                     storage_buffer_length += serializer_serialize(storage_buffer);
-//                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-//                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
+                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
                     Semaphore_post(storage_buffer_mailbox); // writing to the sd card
                 }
             }
