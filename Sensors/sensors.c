@@ -122,7 +122,7 @@ float impedance = 0; // impedance (resistance) calculated for the current sensor
 char* uartBuf; // used to store data that will then be output to the serial monitor
 uint8_t stutter = 0; //checks to make sure we don't stutter more than 3 times in one cycle
 const uint8_t channels = 16; //the number of channels corresponds to the number of sensors and should always be 16.
-static int MUXFREQ = 400;  // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
+static int MUXFREQ = 800;  // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
 const uint8_t DACTIMER_CASE_COUNT = 3;
 static float PERIOD_OF_TIME = 1.23684455; // time it takes to complete one round through the DACtimercallback
 uint8_t res1 = 0; // confirms an adcRead read properly
@@ -133,18 +133,18 @@ float milliseconds = 0; // current time stamp
 int sensorValues[channels] = {125,125,125,125,125,125,125,125,125,125,125,125,125,125,125,125}; //initial tap value for each sensor (the tap value is a measure of the resistance of the potentiometer (variable resistor) in the circuit)
 const uint16_t HIGHCUTSHIGH = 2760; // high tap values upper bound
 const uint16_t LOWCUTSHIGH = 2740; // high tap values lower bound
-const uint16_t HIGHCUTSLOW = 2400; // low tap values upper bound
-const uint16_t LOWCUTSLOW = 2200; // low tap values lower bound
-const uint8_t CALIBRATION_LIMIT = 9; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
-const uint8_t TAP_HIGHEST_VALUE = 250; // highest tap value possible
+const uint16_t HIGHCUTSLOW = 2500; // low tap values upper bound
+const uint16_t LOWCUTSLOW = 2250; // low tap values lower bound
+const uint8_t CALIBRATION_LIMIT = 8; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
+const uint8_t TAP_HIGHEST_VALUE = 254; // highest tap value possible
 const uint8_t TAP_LOWEST_VALUE = 2; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
 const uint8_t lastAmp = 250; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
 int adjust_tap = 0;
 long true_error = 0;
 const uint16_t target_adc = 2750;
-const float kp_value_high = 125;
-const uint16_t kp_value_low = 500;
+const float kp_value_high = .0065;
+const float kp_value_low =.002;
 const float kd_value = 0.0;
 const float ki_value = 0.0;
 //uint8_t last_error[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
@@ -443,7 +443,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         if (adcValue < LOWCUTSHIGH) {
             true_error = LOWCUTSHIGH - adcValue;
 
-            adjust_tap = round(true_error * pow(sensorValues[muxmod],0.7)/ kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+            adjust_tap = round(true_error * pow(sensorValues[muxmod],0.7)*kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
 
             if(adjust_tap > 20 ) adjust_tap = 20;     //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
             if(adjust_tap < 0) adjust_tap = 0;    //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
@@ -451,12 +451,12 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         else if (adcValue > HIGHCUTSHIGH) {
 
             true_error = HIGHCUTSHIGH - adcValue;
-            adjust_tap = round(true_error *pow(sensorValues[muxmod],0.7)/ kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+            adjust_tap = round(true_error *pow(sensorValues[muxmod],0.7)*kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
 
             if(adjust_tap > 0 ) adjust_tap = 0;     //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
             if(adjust_tap < -20) adjust_tap = -20;//Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
         }
-        if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap<2) {
+        if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap<3) {
             if (adcValue < LOWCUTSLOW) {
                 sensorValues[muxmod]++; // move up a tap
             }
@@ -499,8 +499,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
         if (CALIBRATE){
         }
         else {
-            System_sprintf(uartBuf, "%u,%u,%u,%u\n\r", muxmod,sensorValues[muxmod], adcValue,(uint16_t)impedance);
-            print(uartBuf);
+//            System_sprintf(uartBuf, "%u,%u,%u,%u\n\r", muxmod,sensorValues[muxmod], adcValue,(uint16_t)impedance);
+//            print(uartBuf);
 
             // increment the cycle count unless it stuttered
             if ((adcValue < 2950) || (stutter > 3)) {
@@ -511,13 +511,18 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
 //            print(uartBuf);
 
                 if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT) {
+                    if (successImpAdd[muxmod]){
                     impedance = impSum[muxmod]/successImpAdd[muxmod];
+                    }
+                    else {
+                        impedance = 49999.99;
+                    }
                     impSum[muxmod] = 0;
                     successImpAdd[muxmod] = 0;
                     if (muxmod == (channels-1)) counterCYCLE = 0;
 
-//           ` System_sprintf(uartBuf, "%u\n\r", (uint16_t) milliseconds);
-//           ` print(uartBuf);
+//                System_sprintf(uartBuf, "%u,%u,%u,%u\n\r", muxmod,sensorValues[muxmod], adcValue,(uint16_t)impedance);
+//                print(uartBuf);
 
                 /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
                 if (serializer_isFull()) serializer_setTimestamp((uint16_t)milliseconds); // checking if 16 impedance values have been added to the array
