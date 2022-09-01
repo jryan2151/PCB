@@ -529,8 +529,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interru
                 serializer_addImpedance(impedance); // adding the current impedance value to the serializer array
                 if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
                     storage_buffer_length += serializer_serialize(storage_buffer);
-                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+//                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
+//                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
                     Semaphore_post(storage_buffer_mailbox); // writing to the sd card
                 }
             }
