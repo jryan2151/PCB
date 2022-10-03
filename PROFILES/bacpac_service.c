@@ -93,6 +93,11 @@ CONST uint8_t bacpac_service_ExercisingUUID[ATT_UUID_SIZE] =
 {
   TI_BASE_UUID_128(BACPAC_SERVICE_EXERCISING_UUID)
 };
+// version UUID
+CONST uint8_t bacpac_service_VersionUUID[ATT_UUID_SIZE] =
+{
+  TI_BASE_UUID_128(BACPAC_SERVICE_VERSION_UUID)
+};
 
 int remaining_data = -1;
 /*********************************************************************
@@ -138,6 +143,15 @@ static uint8_t bacpac_service_ExercisingVal[BACPAC_SERVICE_EXERCISING_LEN] = {0}
 // Characteristic "Exercising" description
 static uint8 bacpac_service_ExercisingDesc[11] = "Exercising";
 
+// Characteristic "Version" Properties (for declaration)
+static uint8_t bacpac_service_VersionProps = GATT_PROP_READ;
+
+// Characteristic "Version" Value variable
+static uint8_t bacpac_service_VersionVal[BACPAC_SERVICE_VERSION_LEN] = {'B', 'A', 'C', '-', '1', '.', '0', 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+// Characteristic "Version" description
+static uint8 bacpac_service_VersionDesc[8] = "Version";
+
 
 
 
@@ -145,7 +159,7 @@ static uint8 bacpac_service_ExercisingDesc[11] = "Exercising";
 * Profile Attributes - Table
 */
 
-static gattAttribute_t bacpac_serviceAttrTbl[11] =
+static gattAttribute_t bacpac_serviceAttrTbl[14] =
 {
   // bacpac_service Service Declaration
   {
@@ -223,6 +237,27 @@ static gattAttribute_t bacpac_serviceAttrTbl[11] =
         GATT_PERMIT_READ,
         0,
         bacpac_service_ExercisingDesc
+      },
+    // Version Characteristic Declaration
+    {
+      { ATT_BT_UUID_SIZE, characterUUID },
+      GATT_PERMIT_READ,
+      0,
+      &bacpac_service_VersionProps
+    },
+      // Version Characteristic Value
+      {
+        { ATT_UUID_SIZE, bacpac_service_VersionUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+        0,
+        bacpac_service_VersionVal
+      },
+      // Version Description
+      {
+        { ATT_BT_UUID_SIZE, charUserDescUUID },
+        GATT_PERMIT_READ,
+        0,
+        bacpac_service_VersionDesc
       },
 };
 
@@ -385,6 +420,10 @@ bStatus_t Bacpac_service_GetParameter( uint8_t param, uint16_t *len, void *value
       memcpy(value, bacpac_service_ExercisingVal, BACPAC_SERVICE_EXERCISING_LEN);
       break;
 
+    case BACPAC_SERVICE_VERSION_ID:
+      memcpy(value, bacpac_service_VersionVal, BACPAC_SERVICE_VERSION_LEN);
+      break;
+
     default:
       ret = INVALIDPARAMETER;
       break;
@@ -452,6 +491,19 @@ else if ( ! memcmp(pAttr->type.uuid, bacpac_service_ExercisingUUID, pAttr->type.
     else
     {
       *pLen = MIN(maxLen, BACPAC_SERVICE_EXERCISING_LEN - offset);  // Transmit as much as possible
+      memcpy(pValue, pAttr->pValue + offset, *pLen);
+    }
+  }
+  // See if request is regarding the Version Characteristic Value
+else if ( ! memcmp(pAttr->type.uuid, bacpac_service_VersionUUID, pAttr->type.len) )
+  {
+    if ( offset > BACPAC_SERVICE_VERSION_LEN )  // Prevent malicious ATT ReadBlob offsets.
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      *pLen = MIN(maxLen, BACPAC_SERVICE_VERSION_LEN - offset);  // Transmit as much as possible
       memcpy(pValue, pAttr->pValue + offset, *pLen);
     }
   }

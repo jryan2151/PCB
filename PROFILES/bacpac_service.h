@@ -78,6 +78,11 @@ extern int remaining_data;
 #define BACPAC_SERVICE_EXERCISING_UUID 0xBAC3
 #define BACPAC_SERVICE_EXERCISING_LEN  1
 
+//  Characteristic defines
+#define BACPAC_SERVICE_VERSION_ID   3
+#define BACPAC_SERVICE_VERSION_UUID 0xBAC4
+#define BACPAC_SERVICE_VERSION_LEN  16
+
 /*********************************************************************
  * TYPEDEFS
  */
