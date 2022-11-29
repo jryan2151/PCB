@@ -5,6 +5,7 @@
 #include <xdc/runtime/System.h>
 #include "Board.h"
 #include <semaphore.h>
+//#include "Application/simple_peripheral.h"
 
 
 
@@ -19,6 +20,7 @@
 #define DISK_FAILED_WRITE   -4
 #define DISK_LOCKED         -5
 
+static unsigned int cur_sector_num = 100;
 
 extern sem_t storage_mutex;
 
@@ -32,6 +34,7 @@ int da_get_write_pos();
 int da_get_sector_size();
 int da_get_num_sectors();
 
+
 //free txn buffer
 int da_destructor();
 
@@ -43,11 +46,12 @@ int da_close();
 
 // writes to sd card. We only append.
 int da_write(char* buffer, int size);
+void da_set_write_pos(int position);
 
 // reads from position. Position should be initialized to second sector.
 // first sector reserved to track file size
 int da_read(char* buffer, int size);
-
+int da_get_cur_sector();
 int da_get_sector(int sector);
 
 int da_get_data_size();

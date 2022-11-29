@@ -8,7 +8,6 @@ static unsigned long write_pos; // unsigned longs can't handle total possible po
 static unsigned long read_pos; // same for read
 static unsigned int sector_size;
 static unsigned int num_sectors;
-static unsigned int cur_sector_num;
 static unsigned char dirty;
 static unsigned long long total_size;
 static char* txn_buffer;
@@ -62,8 +61,12 @@ int da_load() {
         write_pos = 0;
         read_pos = 0;
     }
-
     cur_sector_num = -1;
+
+//    if (snv_buf[0] == 0) cur_sector_num = -1;
+//    else {
+//        cur_sector_num = snv_buf[0];
+//    }
     dirty = 0;
 
     return DISK_SUCCESS;
@@ -93,7 +96,8 @@ int da_commit() {
         if (result != SD_STATUS_SUCCESS) return -1;
         dirty = 0;
     }
-    cur_sector_num = -1;
+    cur_sector_num = 100;
+//    cur_sector_num = -1;
     memset(txn_buffer, 0, sector_size);
     System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
     result = SD_write(sdHandle, txn_buffer, 0, 1);
@@ -191,6 +195,9 @@ int da_get_data_size() {
     if (size < 0) size = total_size - size;
     return size;
 }
+int da_get_cur_sector() {
+    return cur_sector_num;
+}
 
 int da_get_read_pos() {
     return read_pos;
@@ -198,6 +205,9 @@ int da_get_read_pos() {
 
 int da_get_write_pos() {
     return write_pos;
+}
+void da_set_write_pos(int position) {
+    write_pos = position;
 }
 
 int da_get_sector_size() {
