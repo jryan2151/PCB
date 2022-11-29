@@ -63,10 +63,6 @@ int da_load() {
     }
     cur_sector_num = -1;
 
-//    if (snv_buf[0] == 0) cur_sector_num = -1;
-//    else {
-//        cur_sector_num = snv_buf[0];
-//    }
     dirty = 0;
 
     return DISK_SUCCESS;
@@ -96,8 +92,7 @@ int da_commit() {
         if (result != SD_STATUS_SUCCESS) return -1;
         dirty = 0;
     }
-    cur_sector_num = 100;
-//    cur_sector_num = -1;
+    cur_sector_num = -1;
     memset(txn_buffer, 0, sector_size);
     System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
     result = SD_write(sdHandle, txn_buffer, 0, 1);

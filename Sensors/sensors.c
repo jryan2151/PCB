@@ -140,6 +140,7 @@ const uint8_t TAP_HIGHEST_VALUE = 254; // highest tap value possible
 const uint8_t TAP_LOWEST_VALUE = 2; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
 const uint8_t lastAmp = 250; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
+const uint8_t V_ONE_THREE_DAC = 93; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
 int adjust_tap = 0; // p controller shifting tap value
 long true_error = 0; // target_adc - adcValue for current cycle
 const uint16_t target_adc = 2750; // target adc value for p controller
@@ -234,8 +235,8 @@ void Sensors_init()
     uartBuf = (char*) malloc(256 * sizeof(char));
 
     // Initialize Variables
-    Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
-
+    if (!VONETHREE)Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
+    else Signal.ampAC = V_ONE_THREE_DAC; // Set the V1.31 DAC to the correct value and leave it.  Allows for better calibration
     // Call Driver Init Functions
     I2C_init();
     ADC_init();
@@ -270,8 +271,8 @@ void Sensors_init()
     i2cTrans1.writeCount = 2;
     i2cTrans1.readBuf = NULL;
     i2cTrans1.readCount = 0;
-    if (VONETHREE) i2cTrans1.slaveAddress = 0xC2;// V1.31
-//    if (VONETHREE) i2cTrans1.slaveAddress = 0x61;// V1.31
+//    if (VONETHREE) i2cTrans1.slaveAddress = 0xC2;// V1.31
+    if (VONETHREE) i2cTrans1.slaveAddress = 0x61;// V1.31
     else i2cTrans1.slaveAddress = 0x4C; // See data sheet via Box-> Important Data Sheets for appropriate address for the DAC.
 
     // Initialize master I2C transaction structure for the DAC that is OFF (When we confirm this DAC isn't necessary delete this block of code)
@@ -289,8 +290,8 @@ void Sensors_init()
     i2cTrans3.writeCount = 2;
     i2cTrans3.readBuf = NULL;
     i2cTrans3.readCount = 0;
-    if (VONETHREE) i2cTrans3.slaveAddress = 0x50; //V1.31
-//    if (VONETHREE) i2cTrans3.slaveAddress = 0x28; //V1.31
+//    if (VONETHREE) i2cTrans3.slaveAddress = 0x50; //V1.31
+    if (VONETHREE) i2cTrans3.slaveAddress = 0x28; //V1.31
     else i2cTrans3.slaveAddress = 0x2C; // See data via Box-> Important Data Sheets for appropriate address for the Potentiometer.
 
     /////////////////////////////////////////////////// UART //////////////////////////////////////////////////
@@ -361,8 +362,9 @@ void Sensors_init()
             ;
     }
     if (VONETHREE){
-        txBuffer1[0] = 0x02; //high byte
-        txBuffer1[1] = 0xA0; //low byte
+        Signal.ampAC = V_ONE_THREE_DAC;
+        txBuffer1[0] = Signal.ampAC >> 8; //high byte
+        txBuffer1[1] = Signal.ampAC; //low byte
         I2C_transfer(I2Chandle, &i2cTrans1);
     }
     else{
