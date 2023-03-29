@@ -147,7 +147,7 @@ static uint8 bacpac_service_ExercisingDesc[11] = "Exercising";
 static uint8_t bacpac_service_VersionProps = GATT_PROP_READ;
 
 // Characteristic "Version" Value variable
-static uint8_t bacpac_service_VersionVal[BACPAC_SERVICE_VERSION_LEN] = {'B', 'A', 'C', '-', '1', '.', '0', 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static uint8_t bacpac_service_VersionVal[BACPAC_SERVICE_VERSION_LEN] = {'D', 'A', 'R', 'E', '-', '3', '.', '0', 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Characteristic "Version" description
 static uint8 bacpac_service_VersionDesc[8] = "Version";
