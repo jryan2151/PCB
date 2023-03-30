@@ -150,7 +150,7 @@ const float kp_value_low = .002; // p controller
 //const float ki_value = 0.0; // pi controller
 //uint8_t last_error[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // p controller debugging
 //uint8_t i_error[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // p controller debugging
-const bool CALIBRATE = true; // false runs functional code.  true runs calibration code
+const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
 const bool FOURTYEIGHT = false; // see comment below
 // YOU ALSO NEED TO SET THIS VARIABLE IN THE APPLICATION FOLDER -> FILE SIMPLE_PERIPHERAL.C -> LINE 710
 // setting the variable above to true runs the 48 hour code.
