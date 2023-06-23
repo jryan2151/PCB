@@ -32,12 +32,11 @@ uint8_t getStatus() {
 static void Storage_taskFxn(UArg a0, UArg a1) {
     Storage_init();
 
-    while (storage_status == 0) {
+    while (true) {
         Semaphore_pend(storage_buffer_mailbox, BIOS_WAIT_FOREVER);
+        storage_status = 0;
 
-        if (storage_status == 0) {
-            if (da_write(storage_buffer, storage_buffer_length) != DISK_SUCCESS) ;//storage_status = 1;
-        }
+        if (da_write(storage_buffer, storage_buffer_length) != DISK_SUCCESS) storage_status = 1;
 
         Semaphore_post(storage_buffer_mutex);
     }

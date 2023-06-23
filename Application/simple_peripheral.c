@@ -793,8 +793,8 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
 
         if (Semaphore_pend(bacpac_channel_success_mutex, BIOS_NO_WAIT))
         {
-            System_sprintf(outputBuffer, "success-read:%u write:%u\n\0",
-                           da_get_read_pos(), da_get_write_pos());
+            System_sprintf(outputBuffer, "success-read:%u write:%u expected:%u\n\0",
+                           da_get_read_pos(), da_get_write_pos(), da_get_data_size());
             print(outputBuffer);
             char buf[32];
             int readPos = da_soft_commit();
@@ -830,6 +830,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
 
         if (Semaphore_pend(bacpac_channel_mutex, BIOS_NO_WAIT))
         {
+            int status = DISK_FAILED_READ;
             if (chunkSent >= CHUNK_LENGTH)
             {
                 // if we send a full chunk, then don't sem post on bacpac channel mutex
@@ -843,32 +844,43 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                 if (CHUNK_LENGTH - chunkSent < BACPAC_SERVICE_CHANNEL_LEN)
                 {
                     int partialLength = CHUNK_LENGTH - chunkSent;
-                    da_read(bleChannelBuf, partialLength);
-
-                    //printNotification(chunkSent, bleChannelBuf, partialLength);
-                    chunkSent += partialLength;
+                    status = da_read(bleChannelBuf, partialLength);
+                    if (status == DISK_SUCCESS) {
+                        //printNotification(chunkSent, bleChannelBuf, partialLength);
+                        chunkSent += partialLength;
+                    }
                 }
                 else if (remaining_data > BACPAC_SERVICE_CHANNEL_LEN)
                 {
                     remaining_data -= BACPAC_SERVICE_CHANNEL_LEN;
-                    da_read(bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
-
-                    //printNotification(chunkSent, bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
-                    chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
+                    status = da_read(bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
+                    if (status == DISK_SUCCESS) {
+                        //printNotification(chunkSent, bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
+                        chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
+                    }
                 }
                 else
                 {
-                    da_read(bleChannelBuf, remaining_data);
-                    remaining_data = 0;
-                    finished = 1;
+                    status = da_read(bleChannelBuf, remaining_data);
+                    if (status == DISK_SUCCESS) {
+                        remaining_data = 0;
+                        finished = 1;
 
-                    //printNotification(chunkSent, bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
-                    chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
+                        //printNotification(chunkSent, bleChannelBuf, BACPAC_SERVICE_CHANNEL_LEN);
+                        chunkSent += BACPAC_SERVICE_CHANNEL_LEN;
+                    }
                 }
 
-                Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID,
+                if (status == DISK_SUCCESS) {
+                    Bacpac_service_SetParameter(BACPAC_SERVICE_CHANNEL_ID,
                                             BACPAC_SERVICE_CHANNEL_LEN,
                                             bleChannelBuf);
+                }
+                else {
+                    System_sprintf(outputBuffer, "Not sending bad read\n\0");
+                    print(outputBuffer);
+                }
+                
                 Semaphore_post(bacpac_channel_mutex);
             }
 
