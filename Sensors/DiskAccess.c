@@ -39,10 +39,10 @@ int da_load() {
     txn_buffer = (char *) malloc(sector_size * sizeof(char));
     total_size = sector_size * num_sectors;
     status = SD_read(sdHandle, txn_buffer, 0, 1);
+//    print(txn_buffer);
     if (status != SD_STATUS_SUCCESS) {
         return DISK_FAILED_READ;
     }
-
 
     int i = 0;
     while (i < sector_size) {
@@ -97,7 +97,6 @@ int da_commit() {
     System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
     result = SD_write(sdHandle, txn_buffer, 0, 1);
     if (result != SD_STATUS_SUCCESS) return DISK_FAILED_WRITE;
-
     return DISK_SUCCESS;
 }
 
@@ -107,6 +106,7 @@ int da_get_sector(int sector) {
     sector = sector % num_sectors;
 
     if (dirty != 0) {
+//        System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
         result = SD_write(sdHandle, txn_buffer, cur_sector_num+1, 1);
         if (result != SD_STATUS_SUCCESS) return DISK_FAILED_WRITE;
     }
@@ -209,7 +209,7 @@ int da_get_sector_size() {
     return sector_size;
 }
 
-int da_get_num_sectors(){
+unsigned int da_get_num_sectors(){
     return num_sectors;
 }
 

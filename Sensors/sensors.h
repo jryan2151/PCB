@@ -10,5 +10,4 @@ void DA_get_status(int status_code, char* message);
 
 void print();
 
-
 #endif

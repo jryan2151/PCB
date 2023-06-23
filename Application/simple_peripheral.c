@@ -50,6 +50,7 @@
  */
 #include <string.h>
 
+
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
 #include <ti/sysbios/knl/Event.h>
@@ -91,7 +92,6 @@
 /*********************************************************************
  * CONSTANTS
  */
-
 // Advertising interval when device is discoverable (units of 625us, 160=100ms)
 #define DEFAULT_ADVERTISING_INTERVAL          160
 
@@ -237,8 +237,8 @@ static uint8_t scanRspData[] = {
         'c',
         'e',
         ' ',
-        '9',
-        '6',
+        '8',
+        '4',
 
         // connection interval range
         0x05,// length of this data
@@ -248,7 +248,7 @@ static uint8_t scanRspData[] = {
                 DEFAULT_DESIRED_MAX_CONN_INTERVAL),   // 1s
         HI_UINT16(DEFAULT_DESIRED_MAX_CONN_INTERVAL),
 
-        // Tx power level
+        // Tx power levelf
         0x02,// length of this data
         GAP_ADTYPE_POWER_LEVEL, 0       // 0dBm
         };
@@ -272,7 +272,7 @@ static uint8_t advertData[] = {
         };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice 96";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice 84";
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -728,7 +728,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     uint32_t flash_posit = 0;
     #define BUF_LEN 1
     #define SNV_ID_APP 0x8A
-    #define FLASH_FACTOR = 500000
+    #define FLASH_FACTOR  512000 // 512000 for collecting 48 hour data
 //    uint8_t help_multiply[BUF_LEN] = { 1,1,1,1,1,1,1,1,1,1 }; // more accurate fourty eight hour code?
     static uint8_t snv_buf[BUF_LEN] = { 0};
 //    uint8_t trash[BUF_LEN] = { 0,0,0,0,0,0,0,0,0,0 }; // more accurate fourty eight hour code?
@@ -742,8 +742,10 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
             //Write first time to initialize SN V ID if the first read doesn't register
                 osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t*)snv_buf);
         }
-                flash_posit = snv_buf[0] * 500000;
-                da_set_write_pos(flash_posit);
+                flash_posit = snv_buf[0] * FLASH_FACTOR;
+                if (snv_buf[0] > 0) da_set_write_pos(flash_posit+da_get_sector_size());
+                else da_set_write_pos(flash_posit);
+                //change to 512000 for collecting data
 
                 // more accurate fourty eight hour code?
 //            for (uint8_t flash_iter = 0; flash_iter < BUF_LEN; flash_iter++) {
@@ -799,8 +801,10 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
             System_sprintf(buf, "soft commit to read pos: %d\n\0", readPos);
             print(buf);
             Semaphore_post(bacpac_channel_mutex);
-            if (finished)
+            if (finished) {
                 da_commit();
+                if (FOURTYEIGHT) da_close();
+            }
         }
 
         if (Semaphore_pend(bacpac_channel_error_mutex, BIOS_NO_WAIT))
@@ -931,7 +935,8 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
         // FOURTY EIGHT HOUR CODE
         if (FOURTYEIGHT) {
             flash_posit = da_get_write_pos();
-            snv_buf[0] = flash_posit/500000;
+            snv_buf[0] = flash_posit/FLASH_FACTOR;
+            // CHANGE TO 512000 for testing
             status = osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t *)snv_buf);
             // potentially more accurate fourty eight hour code below
 //        snv_buf[0] = da_get_write_pos()/256;

@@ -81,6 +81,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <float.h>
+
 
 /* Driver Header files */
 #include <ti/drivers/GPIO.h>
@@ -122,15 +124,14 @@ float impedance = 0; // impedance (resistance) calculated for the current sensor
 char *uartBuf; // used to store data that will then be output to the serial monitor
 uint8_t stutter = 0; //checks to make sure we don't stutter more than 3 times in one cycle
 const uint8_t channels = 16; //the number of channels corresponds to the number of sensors and should always be 16.
-static int MUXFREQ = 800; // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
+const uint16_t MUXFREQ = 800; // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
 const uint8_t DACTIMER_CASE_COUNT = 3;
 static float PERIOD_OF_TIME = 1.2522821; // time it takes to complete one round through the DACtimercallback
 uint8_t res1 = 0; // confirms an adcRead read properly
 uint8_t counterCYCLE = 0; // counts the number of DACtimerCallbacks between every output
 uint8_t successImpAdd[channels] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; // records the number of successful impedance values added to impSum for that cycle
 float impSum[channels] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; // compiles impedance values
-float milliseconds = 0; // current time stamp
-int sensorValues[channels] = { 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125 }; //initial tap value for each sensor (the tap value is a measure of the resistance of the potentiometer (variable resistor) in the circuit)
+uint8_t sensorValues[channels] = { 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125 }; //initial tap value for each sensor (the tap value is a measure of the resistance of the potentiometer (variable resistor) in the circuit)
 const uint16_t HIGHCUTSHIGH = 2770; // high tap values upper bound
 const uint16_t LOWCUTSHIGH = 2730; // high tap values lower bound
 const uint16_t HIGHCUTSLOW = 2500; // low tap values upper bound
@@ -141,8 +142,8 @@ const uint8_t TAP_LOWEST_VALUE = 2; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
 const uint8_t lastAmp = 250; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
 const uint8_t V_ONE_THREE_DAC = 93; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
-int adjust_tap = 0; // p controller shifting tap value
-long true_error = 0; // target_adc - adcValue for current cycle
+int8_t adjust_tap = 0; // p controller shifting tap value
+int16_t true_error = 0; // target_adc - adcValue for current cycle
 const uint16_t target_adc = 2750; // target adc value for p controller
 const float kp_value_high = .0065; // p controller
 const float kp_value_low = .002; // p controller
@@ -150,21 +151,24 @@ const float kp_value_low = .002; // p controller
 //const float ki_value = 0.0; // pi controller
 //uint8_t last_error[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // p controller debugging
 //uint8_t i_error[channels] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // p controller debugging
-const bool CALIBRATE = true; // false runs functional code.  true runs calibration code
-const bool FOURTYEIGHT = false; // see comment below
-// YOU ALSO NEED TO SET THIS VARIABLE IN THE APPLICATION FOLDER -> FILE SIMPLE_PERIPHERAL.C -> LINE 710
-// setting the variable above to true runs the 48 hour code.
+const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
+const bool FOURTYEIGHT = false; // output 48 hour test info to UART
 // i.e. saves location on SD card when powered off and prints location to Uart.
-// Remember you need a big sd card to run 48 hour code.
-const bool VONETHREE = true; // changes made to account for new board version 1.31. Set to true if handling new board.
-int readposition = 0;
-int startposition = 0;
+// Remember you need at least a 16 gb sd card to run 48 hour code.
+float milliseconds = 0; // current time stamp
+const bool VONETHREE = false; // changes made to account for new board version 1.31. Set to true if handling new board.
+//int readposition = 0;
+//int startposition = 0;
 uint8_t AUTOMATE = 1; // AUTOCAL - increments tap.
 unsigned char ucCommand[3];
 
 /* Starting sector to write/read to on the SD card*/
 #define STARTINGSECTOR 0
 #define BYTESPERKILOBYTE 1024
+const uint16_t STOP_SECTOR = 10000; // = EXTENDED_TEST_NUM_SEC/(EXTENDED_TEST_HR/HR_BATTERY_LIFE)
+//const int EXTENDED_TEST_NUM_SEC = 220000; // number of sectors in a extended battery (48 hour) test
+//const uint8_t EXTENDED_TEST_HR = 48; // number of hours in a extended battery test
+//const uint8_t HR_BATTERY_LIFE = 10; // battery life in extended battery test
 
 // this table declares the specific Mux Pins which are to be used later in the code
 PIN_Config muxPinTable[] = {
@@ -354,7 +358,6 @@ void Sensors_init()
     adc = ADC_open(0, &params);
     if (adc == NULL)
     {
-        // JARED
         System_sprintf(uartBuf, "Error Initializing ADC channel");
         print(uartBuf);
         // Error initializing ADC channel 0
@@ -381,13 +384,16 @@ void Sensors_init()
     muxmod = 0;
     muxPinReset(muxmod, CALIBRATE);
 
-    // JARED - make sure the string isn't taking up RAM. f(" ")
-    if (CALIBRATE)
+    if (CALIBRATE) {
         Sensors_start_timers(); // AUTOCAL - starts spitting out data immediately.
+    }
     else
     {
         DA_get_status(da_load(), "Loading Disk"); // BLUETOOTH
-        startposition = da_get_read_pos();
+//        startposition = da_get_read_pos();
+    }
+    if (FOURTYEIGHT){
+        Sensors_start_timers();
     }
 }
 
@@ -396,8 +402,8 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac,
                              bool result)
 {
     // Set length bytes
-    if (result)
-    {
+    if (result){
+
         transferDone = true;
     }
     else
@@ -412,7 +418,6 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac,
 void DACtimerCallback(GPTimerCC26XX_Handle handle,
                       GPTimerCC26XX_IntMask interruptMask)
 {
-
     if (counterDAC == 0)
     {
 
@@ -598,16 +603,19 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,
 //                  print(uartBuf);
 
                     /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
-                    if (serializer_isFull())
-                        serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
+                    if (serializer_isFull()) {
+                        if (FOURTYEIGHT) {
+                            serializer_setTimestamp((uint16_t) (milliseconds/1000)); // checking if 16 impedance values have been added to the array
+                        }
+                        else {
+                            serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
+                        }
+                    }
                     serializer_addImpedance(impedance); // adding the current impedance value to the serializer array
-                    if (serializer_isFull()
-                            && Semaphore_pend(storage_buffer_mutex, 0))
-                    {
-                        storage_buffer_length += serializer_serialize(
-                                storage_buffer);
-                    serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-                    print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+                    if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
+                        storage_buffer_length += serializer_serialize(storage_buffer);
+//                     serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
+//                     print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
                         Semaphore_post(storage_buffer_mailbox); // writing to the sd card
                     }
                 }
@@ -634,6 +642,10 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,
     }
     else if (counterDAC == 2)
     {
+//        if (FOURTYEIGHT) {
+//            System_sprintf(uartBuf, "%u,%u,%u\n\r", dt.Date_day, dt.Date_hour, dt.Date_second);
+//            print(uartBuf);
+//        }
         /////////// RESET MUX FOR NEXT  READ ///////////
         muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
 
@@ -663,25 +675,27 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,
         muxPower(1); // turn on the MUX for the next read
         counterDAC = 0; // Reset DACtimerCallback to case 0
 
-//        if (FOURTYEIGHT) {
-//    //        System_sprintf(uartBuf, "%u,%u,%u,%u,%u\n\r", da_get_write_pos(), da_get_read_pos(), da_get_cur_sector(), (uint16_t)da_get_num_sectors(), da_get_sector_size());
-//    //        print(uartBuf);
-//            System_sprintf(uartBuf, "%u,%u\n\r", da_get_write_pos(), da_get_cur_sector());
-//            print(uartBuf);
-//        }
 
+        if (FOURTYEIGHT) {
+            if (da_get_cur_sector()) {
+                if (da_get_cur_sector() % STOP_SECTOR == 0) {
+                    Sensors_stop_timers();
+                }
+            }
+        }  // when the sd card is losing battery, STOP
     }
 }
 
 /* Every time we start recording data we need our time stamp and sensor channel to reset to 0 */
 void Sensors_start_timers()
 {
-    milliseconds = 0;
+    if (FOURTYEIGHT){}
+    else milliseconds = 0;
     muxmod = 0;
-//    Signal.ampAC = lastAmp; // set the DAC to high
-//    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-//    txBuffer1[1] = Signal.ampAC; //low byte
-//    I2C_transfer(I2Chandle, &i2cTrans1);
+    Signal.ampAC = lastAmp; // set the DAC to high
+    txBuffer1[0] = Signal.ampAC >> 8; //high byte
+    txBuffer1[1] = Signal.ampAC; //low byte
+    I2C_transfer(I2Chandle, &i2cTrans1);
     GPTimerCC26XX_start(hDACTimer);
 }
 
@@ -690,17 +704,16 @@ void Sensors_stop_timers()
 {
     serializer_clear();
     if (FOURTYEIGHT) {
-        System_sprintf(uartBuf, "%u,%u,%u,%u,%u\n\r", da_get_write_pos(), da_get_read_pos(), da_get_cur_sector(), (uint16_t)da_get_num_sectors(), da_get_sector_size());
+        System_sprintf(uartBuf, "%u,%u,%u,%u,%u,%u\n\r", da_get_write_pos(), da_get_read_pos(), da_get_cur_sector(), da_get_num_sectors(), da_get_sector_size(), (uint16_t) (milliseconds/1000));
         print(uartBuf);
-//        System_sprintf(uartBuf, "%u,%u\n\r", da_get_write_pos(), da_get_cur_sector());
-//        print(uartBuf);
+        Signal.ampAC = 0; // set the DAC to low
+        txBuffer1[0] = Signal.ampAC >> 8; //high byte
+        txBuffer1[1] = Signal.ampAC; //low byte
+        I2C_transfer(I2Chandle, &i2cTrans1);
     }
-//    Signal.ampAC = 0; // set the DAC to low
-//    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-//    txBuffer1[1] = Signal.ampAC; //low byte
-//    I2C_transfer(I2Chandle, &i2cTrans1);
     GPTimerCC26XX_stop(hDACTimer);
 }
+
 /*
  * DA_get_status returns an explanation of what is happening with the SD Card.
  * Success means everything is working. Failed to initialize SD card implies there is no SD card present.

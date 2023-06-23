@@ -32,7 +32,7 @@ int da_initialize();
 int da_get_read_pos();
 int da_get_write_pos();
 int da_get_sector_size();
-int da_get_num_sectors();
+unsigned int da_get_num_sectors();
 
 
 //free txn buffer
@@ -53,7 +53,6 @@ void da_set_write_pos(int position);
 int da_read(char* buffer, int size);
 int da_get_cur_sector();
 int da_get_sector(int sector);
-
 int da_get_data_size();
 
 int da_soft_commit();
