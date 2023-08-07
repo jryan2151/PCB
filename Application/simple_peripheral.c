@@ -237,8 +237,8 @@ static uint8_t scanRspData[] = {
         'c',
         'e',
         ' ',
-        '8',
-        '4',
+        '3',
+        '6',
 
         // connection interval range
         0x05,// length of this data
@@ -272,7 +272,7 @@ static uint8_t advertData[] = {
         };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice 84";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice 36";
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -721,14 +721,14 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     const int LONG_SLEEP_TIME = 7000;
     const int SHORT_SLEEP_TIME = 1200;
     const int CHUNK_LENGTH = 528;
-    const bool FOURTYEIGHT = false; // adjust to true if running 48 hour code.
+    const bool FOURTYEIGHT = true; // adjust to true if running 48 hour code.
     int chunkSent = 0;
     short finished = 0;
     outputBuffer = malloc(sizeof(char) * 64);
     uint32_t flash_posit = 0;
     #define BUF_LEN 1
     #define SNV_ID_APP 0x8A
-    #define FLASH_FACTOR  512000 // 512000 for collecting 48 hour data
+    const uint16_t FLASH_FACTOR = 512000; // 512000 for collecting 48 hour data
 //    uint8_t help_multiply[BUF_LEN] = { 1,1,1,1,1,1,1,1,1,1 }; // more accurate fourty eight hour code?
     static uint8_t snv_buf[BUF_LEN] = { 0};
 //    uint8_t trash[BUF_LEN] = { 0,0,0,0,0,0,0,0,0,0 }; // more accurate fourty eight hour code?
@@ -743,7 +743,9 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                 osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t*)snv_buf);
         }
                 flash_posit = snv_buf[0] * FLASH_FACTOR;
-                if (snv_buf[0] > 0) da_set_write_pos(flash_posit+da_get_sector_size());
+                if (snv_buf[0] > 0) {
+                    da_set_write_pos(flash_posit + FLASH_FACTOR);
+                }
                 else da_set_write_pos(flash_posit);
                 //change to 512000 for collecting data
 
@@ -947,7 +949,9 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
         // FOURTY EIGHT HOUR CODE
         if (FOURTYEIGHT) {
             flash_posit = da_get_write_pos();
+
             snv_buf[0] = flash_posit/FLASH_FACTOR;
+
             // CHANGE TO 512000 for testing
             status = osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t *)snv_buf);
             // potentially more accurate fourty eight hour code below
