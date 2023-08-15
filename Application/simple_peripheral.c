@@ -728,14 +728,16 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     uint32_t flash_posit = 0;
     #define BUF_LEN 1
     #define SNV_ID_APP 0x8A
-    const uint16_t FLASH_FACTOR = 512000; // 512000 for collecting 48 hour data
+    const uint8_t SD_RAW_FACTOR = 33;
+    const uint8_t RANGE_FACTOR = 33; // This number * 33 is the number of empty sectors between sections of raw data. This number * about 100 to get how many minutes of data you can record successfully.
+    const uint32_t FLASH_FACTOR = SD_RAW_FACTOR * da_get_sector_size() * RANGE_FACTOR;
+    //IMPORTANT! If you want to check if 48 hr collection is working for smaller run times. You need to change FLASH_FACTOR to 512. OTherwise your data will skip 1000 sectors between turning on/off.
 //    uint8_t help_multiply[BUF_LEN] = { 1,1,1,1,1,1,1,1,1,1 }; // more accurate fourty eight hour code?
-    static uint8_t snv_buf[BUF_LEN] = { 0};
+    static uint8_t snv_buf[BUF_LEN] = {0};
 //    uint8_t trash[BUF_LEN] = { 0,0,0,0,0,0,0,0,0,0 }; // more accurate fourty eight hour code?
     uint8_t status = SUCCESS;
 
     if (FOURTYEIGHT) {
-
 //        Read from SNV flash
             status = osal_snv_read(SNV_ID_APP, BUF_LEN, (uint8_t* )snv_buf);
             if (status != SUCCESS){

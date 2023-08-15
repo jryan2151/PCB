@@ -73,6 +73,10 @@
  hex converter: https://www.cs.princeton.edu/courses/archive/fall07/cos109/bc.html for Slave Address
  */
 
+/* 48 hour code Notes
+You also need to set the FOURTYEIGHT boolian in a different file to true -> FILE SIMPLE_PERIPHERAL.C -> LINE 710
+ */
+
 // CODE VERSION 1.1
 /* C included packages */
 #include <stdint.h>
@@ -122,7 +126,6 @@ float impedance = 0; // impedance (resistance) calculated for the current sensor
 char *uartBuf; // used to store data that will then be output to the serial monitor
 uint8_t stutter = 0; //checks to make sure we don't stutter more than 3 times in one cycle
 const uint8_t channels = 16; //the number of channels corresponds to the number of sensors and should always be 16.
-const int MUXFREQ = 800; // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
 const uint8_t DACTIMER_CASE_COUNT = 3;
 const float PERIOD_OF_TIME = 1.2522821; // time it takes to complete one round through the DACtimercallback
 uint8_t res1 = 0; // confirms an adcRead read properly
@@ -148,45 +151,28 @@ const float kp_value_high = .0065; // p controller
 const float kp_value_low = .002; // p controller
 float milvolt = 0;
 const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
-const bool FOURTYEIGHT = true; // see comment below
-// READ THIS
-// if you are printing each line to the uart there won't be any data written to the sd card. Printing to uart so frequently takes too long. Change this on ~line 576-577
-// YOU ALSO NEED TO SET THIS VARIABLE IN THE APPLICATION FOLDER -> FILE SIMPLE_PERIPHERAL.C -> LINE 710
-// setting the variable above to true runs the 48 hour code.
-// i.e. saves location on SD card when powered off and prints location to Uart.
-// Remember you need a big sd card to run 48 hour code.
+const bool FOURTYEIGHT = false; // runs 48 hour code. Will immediately start writing data to sd card when device turned on.
 const bool VONETHREE = false; // changes made to account for new board version 1.31. Set to true if handling new board.
-const bool EMG = false; // changes made to account for EMG
+const bool EMG = true; // changes made to account for EMG
 int readposition = 0;
 int startposition = 0;
 uint8_t AUTOMATE = 1; // AUTOCAL - increments tap.
 unsigned char ucCommand[3];
-const float MV_SCALE = (3300.0/4096.0);
-const uint16_t STOP_SECTOR = 10; // = EXTENDED_TEST_NUM_SEC/(EXTENDED_TEST_HR/HR_BATTERY_LIFE)
-//const int EXTENDED_TEST_NUM_SEC = 220000; // number of sectors in a extended battery (48 hour) test
-//const uint8_t EXTENDED_TEST_HR = 48; // number of hours in a extended battery test
-//const uint8_t HR_BATTERY_LIFE = 10; // battery life in extended battery test
+const float MV_SCALE = 8.056640625; // (3300.0/4096.0)
+const uint16_t MUXFREQ = 800; // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
 
 /* Starting sector to write/read to on the SD card*/
 #define STARTINGSECTOR 0
 #define BYTESPERKILOBYTE 1024
 
 // this table declares the specific Mux Pins which are to be used later in the code
-PIN_Config muxPinTable[] = {
-IOID_28 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX, //ENABLE
-//if (!EMG){
-    IOID_22 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A3
-    IOID_23 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A2
-    IOID_12 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A1
-    IOID_15 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A0
-//}
-//else {
-//        IOID_22 | PIN_GPIO_INPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A3
-//        IOID_23 | PIN_GPIO_INPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A2
-//        IOID_12 | PIN_GPIO_INPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A1
-//        IOID_15 | PIN_GPIO_INPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A0
-//}
-PIN_TERMINATE };
+    PIN_Config muxPinTable[] = {
+    IOID_28 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX, //ENABLE
+        IOID_22 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A3
+        IOID_23 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A2
+        IOID_12 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A1
+        IOID_15 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A0
+    PIN_TERMINATE };
 
 ///////////////////////////////////// I2C preamble //////////////////////////
 uint8_t rxBuffer1[0];          // Receive buffer for the DAC that is on.
@@ -200,8 +186,7 @@ bool openDone = true; // signify the I2C has opened successfully in order to tra
 uint8_t counterDAC = 0; // declaring the counterDac used in DACtimerCallback function
 
 //Used to store the signal2 current amplitude (max is 4095)
-struct
-{
+struct {
     uint16_t ampAC :12; // signal to the system that will go high.
     uint16_t ampDC :12; // reference signal. Remains 0 so we have something to measure against.
 } Signal; //&&& signal-> Signal
@@ -209,10 +194,8 @@ struct
 /*///////////////////////////////////// Function Declarations /////////////////////////////////////
  The majority of these functions act as callback functions and will interrupt any running code every few milliseconds or so in order
  to perform their functions.  The majority of the functionality on the PCB happens in DACtimerCallback */
-
 static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool result);
-void DACtimerCallback(GPTimerCC26XX_Handle handle,
-                      GPTimerCC26XX_IntMask interruptMask);
+void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask);
 void muxPinReset(uint8_t muxmod_GS, bool autocal);
 void muxPower(uint8_t power);
 
@@ -228,7 +211,6 @@ I2C_Transaction i2cTrans3;
 /* ADC Global Variables */
 ADC_Handle adc; // used in turning on adc
 ADC_Params params; // used in turning on adc
-
 UART_Handle uart;
 
 void uartCallback(UART_Handle handle, void *buf, size_t count){
@@ -236,7 +218,6 @@ void uartCallback(UART_Handle handle, void *buf, size_t count){
 }
 
 //                              ======== MAIN THREAD ========
-
 // this function is run immediately when the PCB is programmed. Any time you reset the PCB it will run again.
 void Sensors_init(){
     uartBuf = (char*) malloc(256 * sizeof(char));
@@ -255,12 +236,10 @@ void Sensors_init(){
     GPIO_setConfig(Board_GPIO_LED0, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     /* Turn on user LED */
     GPIO_write(Board_GPIO_LED0, Board_GPIO_LED_OFF);
-
     /* Configure the LED pins */
     GPIO_setConfig(Board_GPIO_LED1, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     /* Turn on user LED */
     GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
-
     /* Configure the LED pins */
     GPIO_setConfig(Board_DIO0, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     /* Turn on user LED */
@@ -323,13 +302,12 @@ void Sensors_init(){
         print(uartBuf);
         while (1);
     }
-
     GPTimerCC26XX_Value loadValDAC = 48000000 / (MUXFREQ * DACTIMER_CASE_COUNT);
+//    if (EMG) loadValDAC = loadValDAC/2;
     loadValDAC = loadValDAC - 1;
 
     GPTimerCC26XX_setLoadValue(hDACTimer, loadValDAC);
-    GPTimerCC26XX_registerInterrupt(hDACTimer, DACtimerCallback,
-                                    GPT_INT_TIMEOUT);
+    GPTimerCC26XX_registerInterrupt(hDACTimer, DACtimerCallback, GPT_INT_TIMEOUT);
 
     // Open I2C
     I2Chandle = I2C_open(Board_I2C0, &I2Cparams);
@@ -341,25 +319,22 @@ void Sensors_init(){
     }
 
 ////////////////////////////////////////////////////////////////// MUX //////////////////////////////////////////////////////////
-    muxPinHandle = PIN_open(&muxPinState, muxPinTable);
-    if (!muxPinHandle){
-        /* Error initializing mux output pins */
-        System_sprintf(uartBuf, "Error Initializing Mux Output Pins");
-        print(uartBuf);
-        while (1);
-    }
-//    muxInit();
+        muxPinHandle = PIN_open(&muxPinState, muxPinTable);
+        if (!muxPinHandle){
+            /* Error initializing mux output pins */
+            System_sprintf(uartBuf, "Error Initializing Mux Output Pins");
+            print(uartBuf);
+            while (1);
+        }
 
 //////////////////////////////////////////////////////////////////// ADC //////////////////////////////////////////////////////////
     ADC_Params_init(&params);
     adc = ADC_open(0, &params);
     if (adc == NULL){
-        // JARED
         System_sprintf(uartBuf, "Error Initializing ADC channel");
         print(uartBuf);
         // Error initializing ADC channel 0
-        while (1)
-            ;
+        while (1);
     }
     if (VONETHREE){
         Signal.ampAC = V_ONE_THREE_DAC;
@@ -367,7 +342,8 @@ void Sensors_init(){
         txBuffer1[1] = Signal.ampAC; //low byte
         I2C_transfer(I2Chandle, &i2cTrans1);
     } else {
-        Signal.ampAC = lastAmp; // High signal.
+        if  (EMG) Signal.ampAC = 0;
+        else Signal.ampAC = lastAmp; // High signal.
         Signal.ampDC = 0; // reference signal.  Needs to be low so we can measure against it.
         txBuffer1[0] = Signal.ampAC >> 8; //high byte
         txBuffer1[1] = Signal.ampAC; //low byte
@@ -380,14 +356,17 @@ void Sensors_init(){
     muxmod = 0;
     muxPinReset(muxmod, CALIBRATE);
 
-    // JARED - make sure the string isn't taking up RAM. f(" ")
-    if (CALIBRATE)
-        Sensors_start_timers(); // AUTOCAL - starts spitting out data immediately.
-    else{
+    if (EMG){
+        txBuffer3[0] = 0;
+        txBuffer3[1] = 1;
+        I2C_transfer(I2Chandle, &i2cTrans3);
+    }
+    if (CALIBRATE) Sensors_start_timers(); // AUTOCAL - starts spitting out data immediately.
+    else {
         DA_get_status(da_load(), "Loading Disk"); // BLUETOOTH
         startposition = da_get_read_pos();
     }
-    if (FOURTYEIGHT|| EMG){
+    if (FOURTYEIGHT){
         Sensors_start_timers();
     }
 }
@@ -395,12 +374,10 @@ void Sensors_init(){
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
 static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool result){
     // Set length bytes
-    if (result)
-    {
+    if (result) {
         transferDone = true;
     }
-    else
-    {
+    else {
         // Transaction failed, act accordingly...
         transferDone = false;
     }
@@ -408,7 +385,6 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
 
 // this is where the bulk of the functionality of this file takes place.
 void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interruptMask) {
-
     if (counterDAC == 0){
         ////////// ADC Read  ///////////
         res1 = ADC_convert(adc, &adcValue); // read the current adc Value
@@ -418,17 +394,14 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             default:
                 res1 = ADC_convert(adc, &adcValue);
         }
-
         // turn off MUX to conserve POWER
-        muxPower(0);
-
-        storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes.
+        if (!EMG) muxPower(0);
+        storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes. Don't know if necessary
 
         //         AUTOCAL CODE FOR CALLIBRATION
         if (CALIBRATE){
             if (muxmod == 0) {
-                System_sprintf(uartBuf, "%u,%u,%u,", (uint32_t) milliseconds,
-                               AUTOMATE, adcValue); // output time stamp, tap, adc value of current sensor
+                System_sprintf(uartBuf, "%u,%u,%u,", (uint32_t) milliseconds, AUTOMATE, adcValue); // output time stamp, tap, adc value of current sensor
                 print(uartBuf);
             }
             else if (muxmod < 15){
@@ -438,9 +411,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             else{
                 System_sprintf(uartBuf, "%u\n\r", adcValue); // output adc value of current sensor and end line
                 print(uartBuf);
-
                 AUTOMATE++;
-
                 if (AUTOMATE > 254){
                     AUTOMATE = 2; // calibrate from tap 2 to 253
                 }
@@ -451,23 +422,30 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             }
         }
         else if (EMG){
-//            // designed for v1.2 board with 12 bit adc read on 3.3 Volts
-//            voltage = (adcValue/4096)*3.3; // this needs to be adjusted based on our 3200 adc cap currently.
+            // designed for v1.2 board with 12 bit adc read on 3.3 Volts
             if ((adcValue < 2950) || (stutter > 3)){
-                if (adcValue < 0) {
-                    milvolt = 10000; // if our adcValue is too low. We don't want to interpret it as valid data.
-                }
-                else{
-                    milvolt = adcValue * MV_SCALE;
-                }
-//                if (milvolt > 3.3){
-//                    milvolt = 10000; // we only need impedance values within a certain range. This is our cap.
-//                }
+                milvolt = (adcValue * MV_SCALE); // required calibration for EMG
                 if (res1 == ADC_STATUS_SUCCESS){
                     impSum[muxmod] += milvolt; // if ,adc read correctly we want to add the calculated impedance to a sum to be averaged later
                     successImpAdd[muxmod] += 1; // increment number of successful impedance values added this round
                 }
             }
+            if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
+                counterCYCLE++;
+            }
+            GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
+            muxmod++; // possibly still need something with stutter and checking if this is when we should output.
+            if (muxmod == channels){
+                muxmod = 0; // reset counter back to zero if it equals the number of channels
+            }
+
+            /////////// RESET MUX FOR NEXT  READ ///////////
+            muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
+
+            /////////// RESET POTENTIOMETER  FOR NEXT SENSOR READ ///////////
+            // To prevent values carrying over from cycle to cycle.
+            adcValue = 0;
+            impedance = 0;
         }
         else {
             ////////// CALCULATE IMPEDANCE //////////
@@ -489,52 +467,68 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
         }
         counterDAC += 1; // increments DACtimerCallback counter to 2
     }
-
     else if (counterDAC == 1) {
         if (CALIBRATE){}
         else {
-            ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
-            // P Controller
-
-            if (adcValue < LOWCUTSHIGH){
-                true_error = LOWCUTSHIGH - adcValue;
-                adjust_tap = round(
-                        true_error * pow(sensorValues[muxmod], 0.7)* kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
-                if (adjust_tap > 20)
-                    adjust_tap = 20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                if (adjust_tap < 0)
-                    adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-            }
-            else if (adcValue > HIGHCUTSHIGH){
-                true_error = HIGHCUTSHIGH - adcValue;
-                adjust_tap = round( true_error * pow(sensorValues[muxmod], 0.7)* kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
-
-                if (adjust_tap > 0)
-                    adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                if (adjust_tap < -20)
-                    adjust_tap = -20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-            }
-            if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap < 3){
-                if (adcValue < LOWCUTSLOW){
-                    sensorValues[muxmod]++; // move up a tap
+            if (EMG){//EMG Code collects 3 times as fast as normal impedance code
+                res1 = ADC_convert(adc, &adcValue); // read the current adc Value
+                switch (res1){
+                    case ADC_STATUS_SUCCESS:
+                        break;
+                    default:
+                        res1 = ADC_convert(adc, &adcValue);
                 }
-                else if (adcValue > HIGHCUTSLOW){
-                    sensorValues[muxmod]--; // move down a tap
+            // designed for v1.2 board with 12 bit adc read on 3.3 Volts
+                if ((adcValue < 2950) || (stutter > 3)){
+                    milvolt = (adcValue * MV_SCALE); // required calibration for EMG
+                    if (res1 == ADC_STATUS_SUCCESS){
+                        impSum[muxmod] += milvolt; // if ,adc read correctly we want to add the calculated impedance to a sum to be averaged later
+                        successImpAdd[muxmod] += 1; // increment number of successful impedance values added this round
+                    }
+                }
+                storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes. Don't know if necessary
+            }
+            else {
+                ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
+                // P Controller
+                if (adcValue < LOWCUTSHIGH){
+                    true_error = LOWCUTSHIGH - adcValue;
+                    adjust_tap = round(true_error * pow(sensorValues[muxmod], 0.7)* kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+                    if (adjust_tap > 20)
+                        adjust_tap = 20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                    if (adjust_tap < 0)
+                        adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                }
+                else if (adcValue > HIGHCUTSHIGH){
+                    true_error = HIGHCUTSHIGH - adcValue;
+                    adjust_tap = round( true_error * pow(sensorValues[muxmod], 0.7)* kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+
+                    if (adjust_tap > 0)
+                        adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                    if (adjust_tap < -20)
+                        adjust_tap = -20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                }
+                if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap < 3){
+                    if (adcValue < LOWCUTSLOW){
+                        sensorValues[muxmod]++; // move up a tap
+                    }
+                    else if (adcValue > HIGHCUTSLOW){
+                        sensorValues[muxmod]--; // move down a tap
+                    }
+                }
+                else if (adcValue < LOWCUTSHIGH || adcValue > HIGHCUTSHIGH){
+                    sensorValues[muxmod] = sensorValues[muxmod] + adjust_tap;
+                }
+                if (sensorValues[muxmod] > TAP_HIGHEST_VALUE){ // if we are out of our tap value range we want to bring it back.
+                    sensorValues[muxmod] = TAP_HIGHEST_VALUE;
+                    //IF we have an Integral Overrun - reset it here. This is where we'll find it most likely to be pinned (these two walls)
+                }
+                else if (sensorValues[muxmod] < TAP_LOWEST_VALUE) { // if we are out of our tap value range we want to bring it back.
+                    sensorValues[muxmod] = TAP_LOWEST_VALUE;
                 }
             }
-            else if (adcValue < LOWCUTSHIGH || adcValue > HIGHCUTSHIGH){
-                sensorValues[muxmod] = sensorValues[muxmod] + adjust_tap;
-            }
-            if (sensorValues[muxmod] > TAP_HIGHEST_VALUE){ // if we are out of our tap value range we want to bring it back.
-                sensorValues[muxmod] = TAP_HIGHEST_VALUE;
-                //IF we have an Integral Overrun - reset it here. This is where we'll find it most likely to be pinned (these two walls)
-            }
-            else if (sensorValues[muxmod] < TAP_LOWEST_VALUE) { // if we are out of our tap value range we want to bring it back.
-                sensorValues[muxmod] = TAP_LOWEST_VALUE;
-            }
-
             // increment the cycle count unless it stuttered
-            if ((adcValue < 2950) || (stutter > 3)){
+            if ((adcValue < 2950) || (stutter > 3)){ // if having problem EMG its probably because of these lines
                 if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
                     counterCYCLE++;
                 }
@@ -544,7 +538,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                             milvolt = impSum[muxmod] / successImpAdd[muxmod];
                         }
                         else {
-                            impedance = 49999.99;
+                            milvolt = 49999.99;
                         }
                     }
                     else {
@@ -559,7 +553,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                     successImpAdd[muxmod] = 0;
                     if (muxmod == (channels - 1))
                         counterCYCLE = 0;
-
                     /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
                     if (serializer_isFull()){
                         if (FOURTYEIGHT) {
@@ -576,6 +569,10 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
 //                        serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
 //                        print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
                         Semaphore_post(storage_buffer_mailbox); // writing to the sd card
+//                        if (EMG) {
+//                            System_sprintf(uartBuf, "%u\n\r", adcValue);
+//                            print(uartBuf);
+//                        }
                     }
                 }
 
@@ -596,8 +593,41 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             }
         }
         counterDAC += 1;
+
+        if (EMG){/////////// RESET MUX FOR NEXT  READ ///////////
+            muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
+
+            /////////// RESET POTENTIOMETER  FOR NEXT SENSOR READ ///////////
+            // To prevent values carrying over from cycle to cycle.
+            adcValue = 0;
+            impedance = 0;
+        }
     }
     else if (counterDAC == 2){
+        if (EMG){ //EMG Code collects 3 times as fast as normal impedance code
+            res1 = ADC_convert(adc, &adcValue); // read the current adc Value
+            switch (res1){
+                case ADC_STATUS_SUCCESS:
+                    break;
+                default:
+                    res1 = ADC_convert(adc, &adcValue);
+            }
+            if ((adcValue < 2950) || (stutter > 3)){
+                milvolt = (adcValue * MV_SCALE); // required calibration for EMG
+                if (res1 == ADC_STATUS_SUCCESS){
+                    impSum[muxmod] += milvolt; // if ,adc read correctly we want to add the calculated impedance to a sum to be averaged later
+                    successImpAdd[muxmod] += 1; // increment number of successful impedance values added this round
+                }
+           }
+           if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
+               counterCYCLE++;
+           }
+           GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
+           muxmod++;
+           if (muxmod == channels){
+               muxmod = 0; // reset counter back to zero if it equals the number of channels
+           }
+        }
         /////////// RESET MUX FOR NEXT  READ ///////////
         muxPinReset(muxmod, CALIBRATE); // convert the mux to new setting to account for next sensor channel
 
@@ -606,69 +636,43 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
         adcValue = 0;
         impedance = 0;
 
-        // Set potentiometer value for next read //
-        txBuffer3[0] = 0; // 8 bit device so we don't need the high byte
-
-        // AUTOCAL CODE. SWITCH muxmod with AUTOMATE.
-        // EMG action needed when cycling.
-        if (CALIBRATE){
-            txBuffer3[1] = AUTOMATE;
-        } else if (EMG) {
-            txBuffer3[1] = 0;
-        } else{
-            txBuffer3[1] = sensorValues[muxmod]; // write to the potentiometer
-        }
-
-        I2C_transfer(I2Chandle, &i2cTrans3);
-        if (FOURTYEIGHT) {
-            if (da_get_cur_sector()) {
-                if (da_get_cur_sector() % STOP_SECTOR == 0) {
-                    Sensors_stop_timers();
-                }
+        if (!EMG) {
+            txBuffer3[0] = 0; // 8 bit device so we don't need the high byte
+            // AUTOCAL CODE. Switches muxmod with AUTOMATE.
+            if (CALIBRATE){
+                txBuffer3[1] = AUTOMATE;
+            }  else{
+                txBuffer3[1] = sensorValues[muxmod];
             }
-        }  // when the sd card is losing battery, STOP
-
+            I2C_transfer(I2Chandle, &i2cTrans3); // writes to the potentiometer the values from above over I2C communication.
+        }
         /// Updates milliseconds variable (time stamp)
         milliseconds = milliseconds + PERIOD_OF_TIME; // End of a cycle. Update current time stamp.
-
-        // EMG action needed.
-        muxPower(1); // turn on the MUX for the next read
+        if (!EMG) muxPower(1); // turn on the MUX for the next read
         counterDAC = 0; // Reset DACtimerCallback to case 0
     }
 }
-
+// muxpower is a shortcut to configure our mux enable pin
+void muxPower(uint8_t power){
+        if (power == 1){
+            PIN_setOutputValue(muxPinHandle, IOID_28, 0);
+        }
+        if (power == 0){
+            PIN_setOutputValue(muxPinHandle, IOID_28, 1);
+        }
+}
 /* Every time we start recording data we need our time stamp and sensor channel to reset to 0 */
-void Sensors_start_timers()
-{
+void Sensors_start_timers() {
     milliseconds = 0;
     muxmod = 0;
-//    Signal.ampAC = lastAmp; // set the DAC to high
-//    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-//    txBuffer1[1] = Signal.ampAC; //low byte
-//    I2C_transfer(I2Chandle, &i2cTrans1);
+    if (EMG) PIN_setOutputValue(muxPinHandle, IOID_28, 0); // set the mux enable on.
     GPTimerCC26XX_start(hDACTimer);
 }
-
 /* Every time we stop recording data we clear our serializer because our sensors channel will reset next time we start writing again */
-void Sensors_stop_timers()
-{
+void Sensors_stop_timers() {
     serializer_clear();
-    if (FOURTYEIGHT) {
-        System_sprintf(uartBuf, "%u,%u,%u,%u,%u\n\r", da_get_write_pos(), da_get_read_pos(), da_get_cur_sector(), (uint16_t)da_get_num_sectors(), da_get_sector_size());
-        print(uartBuf);
-    }
-    if (FOURTYEIGHT){}
-    else milliseconds = 0;
-//    Signal.ampAC = 0; // set the DAC to low
-//    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-//    txBuffer1[1] = Signal.ampAC; //low byte
-//    I2C_transfer(I2Chandle, &i2cTrans1);
-    //        if (FOURTYEIGHT) {
-    //    //        System_sprintf(uartBuf, "%u,%u,%u,%u,%u\n\r", da_get_write_pos(), da_get_read_pos(), da_get_cur_sector(), (uint16_t)da_get_num_sectors(), da_get_sector_size());
-    //    //        print(uartBuf);
-    //            System_sprintf(uartBuf, "%u,%u\n\r", da_get_write_pos(), da_get_cur_sector());
-    //            print(uartBuf);
-    //        }
+    milliseconds = 0;
+    if (EMG) PIN_setOutputValue(muxPinHandle, IOID_28, 1);
     GPTimerCC26XX_stop(hDACTimer);
 }
 /*
@@ -709,18 +713,6 @@ void DA_get_status(int status_code, char *message)
 void print(char *str)
 {
     UART_write(uart, str, strlen(str));
-}
-
-void muxPower(uint8_t power)
-{
-    if (power == 1)
-    {
-        PIN_setOutputValue(muxPinHandle, IOID_28, 0);
-    }
-    if (power == 0)
-    {
-        PIN_setOutputValue(muxPinHandle, IOID_28, 1);
-    }
 }
 // calibration code and functional code have different pin configurations
 void muxPinReset(uint8_t muxmod, bool autoCal)
