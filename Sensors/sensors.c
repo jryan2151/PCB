@@ -138,9 +138,14 @@ const uint16_t HIGHCUTSHIGH = 2770; // high tap values upper bound
 const uint16_t LOWCUTSHIGH = 2730; // high tap values lower bound
 const uint16_t HIGHCUTSLOW = 2500; // low tap values upper bound
 const uint16_t LOWCUTSLOW = 2250; // low tap values lower bound
+const uint16_t HIGHCUTSHIGHTHREE = 2700; // high tap values upper bound
+const uint16_t LOWCUTSHIGHTHREE = 2200; // high tap values lower bound
+const uint16_t HIGHCUTSLOWTHREE = 2600; // low tap values upper bound
+const uint16_t LOWCUTSLOWTHREE = 1000; // low tap values lower bound
 const uint8_t CALIBRATION_LIMIT = 8; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
+const uint8_t CALIBRATION_LIMITTHREE = 4; // the lower tap values don't quite reach 3000 so we need lower cutoffs. This is the point where these different cutoffs apply.
 const uint8_t TAP_HIGHEST_VALUE = 254; // highest tap value possible
-const uint8_t TAP_LOWEST_VALUE = 2; // lowest tap value possible
+const uint8_t TAP_LOWEST_VALUE = 1; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
 const uint8_t lastAmp = 250; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
 const uint8_t V_ONE_THREE_DAC = 93; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
@@ -152,8 +157,8 @@ const float kp_value_low = .002; // p controller
 float milvolt = 0;
 const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
 const bool FOURTYEIGHT = false; // runs 48 hour code. Will immediately start writing data to sd card when device turned on.
-const bool VONETHREE = false; // changes made to account for new board version 1.31. Set to true if handling new board.
-const bool EMG = true; // changes made to account for EMG
+const bool VONETHREE = true; // changes made to account for new board version 1.31. Set to true if handling new board.
+const bool EMG = false; // changes made to account for EMG.
 int readposition = 0;
 int startposition = 0;
 uint8_t AUTOMATE = 1; // AUTOCAL - increments tap.
@@ -386,6 +391,7 @@ static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool r
 // this is where the bulk of the functionality of this file takes place.
 void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interruptMask) {
     if (counterDAC == 0){
+        if (VONETHREE) stutter = 10;
         ////////// ADC Read  ///////////
         res1 = ADC_convert(adc, &adcValue); // read the current adc Value
         switch (res1){
@@ -397,7 +403,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
         // turn off MUX to conserve POWER
         if (!EMG) muxPower(0);
         storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes. Don't know if necessary
-
         //         AUTOCAL CODE FOR CALLIBRATION
         if (CALIBRATE){
             if (muxmod == 0) {
@@ -450,7 +455,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
         else {
             ////////// CALCULATE IMPEDANCE //////////
             if ((adcValue < 2950) || (stutter > 3)){
-                if (adcValue < 400){
+                if (adcValue < 400 && !VONETHREE){
                     impedance = 49999.99; // if our adcValue is too low. We don't want to interpret it as valid data.
                 }
                 else{
@@ -491,44 +496,72 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             else {
                 ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
                 // P Controller
-                if (adcValue < LOWCUTSHIGH){
-                    true_error = LOWCUTSHIGH - adcValue;
-                    adjust_tap = round(true_error * pow(sensorValues[muxmod], 0.7)* kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
-                    if (adjust_tap > 20)
-                        adjust_tap = 20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                    if (adjust_tap < 0)
-                        adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                }
-                else if (adcValue > HIGHCUTSHIGH){
-                    true_error = HIGHCUTSHIGH - adcValue;
-                    adjust_tap = round( true_error * pow(sensorValues[muxmod], 0.7)* kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+                if (!VONETHREE) {
+                    if (adcValue < LOWCUTSHIGH){
+                        true_error = LOWCUTSHIGH - adcValue;
+                        adjust_tap = round(true_error * pow(sensorValues[muxmod], 0.7)* kp_value_low); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
+                        if (adjust_tap > 20)
+                            adjust_tap = 20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                        if (adjust_tap < 0)
+                            adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                    }
+                    else if (adcValue > HIGHCUTSHIGH){
+                        true_error = HIGHCUTSHIGH - adcValue;
+                        adjust_tap = round( true_error * pow(sensorValues[muxmod], 0.7)* kp_value_high); // + kd_value * (true_error - last_error[muxmod]) + ki_value * (i_error[muxmod] + true_error);
 
-                    if (adjust_tap > 0)
-                        adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                    if (adjust_tap < -20)
-                        adjust_tap = -20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
-                }
-                if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap < 3){
-                    if (adcValue < LOWCUTSLOW){
-                        sensorValues[muxmod]++; // move up a tap
+                        if (adjust_tap > 0)
+                            adjust_tap = 0; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
+                        if (adjust_tap < -20)
+                            adjust_tap = -20; //Arbitrary bounds on the adjustment - we need to make this a PARAMETER (const int) later
                     }
-                    else if (adcValue > HIGHCUTSLOW){
-                        sensorValues[muxmod]--; // move down a tap
+                    if (sensorValues[muxmod] < CALIBRATION_LIMIT && adjust_tap < 3){
+                        if (adcValue < LOWCUTSLOW){
+                            sensorValues[muxmod]++; // move up a tap
+                        }
+                        else if (adcValue > HIGHCUTSLOW){
+                            sensorValues[muxmod]--; // move down a tap
+                        }
+                    }
+                    else if (adcValue < LOWCUTSHIGH || adcValue > HIGHCUTSHIGH){
+                        sensorValues[muxmod] = sensorValues[muxmod] + adjust_tap;
+                    }
+                    if (sensorValues[muxmod] > TAP_HIGHEST_VALUE){ // if we are out of our tap value range we want to bring it back.
+                        sensorValues[muxmod] = TAP_HIGHEST_VALUE;
+                        //IF we have an Integral Overrun - reset it here. This is where we'll find it most likely to be pinned (these two walls)
+                    }
+                    else if (sensorValues[muxmod] < TAP_LOWEST_VALUE) { // if we are out of our tap value range we want to bring it back.
+                        sensorValues[muxmod] = TAP_LOWEST_VALUE;
                     }
                 }
-                else if (adcValue < LOWCUTSHIGH || adcValue > HIGHCUTSHIGH){
-                    sensorValues[muxmod] = sensorValues[muxmod] + adjust_tap;
-                }
-                if (sensorValues[muxmod] > TAP_HIGHEST_VALUE){ // if we are out of our tap value range we want to bring it back.
-                    sensorValues[muxmod] = TAP_HIGHEST_VALUE;
-                    //IF we have an Integral Overrun - reset it here. This is where we'll find it most likely to be pinned (these two walls)
-                }
-                else if (sensorValues[muxmod] < TAP_LOWEST_VALUE) { // if we are out of our tap value range we want to bring it back.
-                    sensorValues[muxmod] = TAP_LOWEST_VALUE;
+                else {
+                    if (sensorValues[muxmod] > CALIBRATION_LIMITTHREE) {
+                        if (adcValue < LOWCUTSHIGHTHREE) {
+                            sensorValues[muxmod]++; // move up a tap
+                        }
+                        else if (adcValue > HIGHCUTSHIGHTHREE) {
+                            sensorValues[muxmod]--; // move down a tap
+                        }
+                    }
+                    else {
+                        if (adcValue < LOWCUTSLOWTHREE) {
+                            sensorValues[muxmod]++; // move up a tap
+                            }
+                        else if (adcValue > HIGHCUTSLOWTHREE) {
+                            sensorValues[muxmod]--; // move down a tap
+                            }
+                    }
+                    if (sensorValues[muxmod] > TAP_HIGHEST_VALUE) // if we are out of our tap value range we want to bring it back.
+                    {
+                        sensorValues[muxmod] = TAP_HIGHEST_VALUE;
+                    }
+                    else if (sensorValues[muxmod] < TAP_LOWEST_VALUE) // if we are out of our tap value range we want to bring it back.
+                    {
+                        sensorValues[muxmod] = TAP_LOWEST_VALUE;
+                    }
                 }
             }
             // increment the cycle count unless it stuttered
-            if ((adcValue < 2950) || (stutter > 3)){ // if having problem EMG its probably because of these lines
+            if ((adcValue < 2950) || (stutter > 3)) {
                 if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
                     counterCYCLE++;
                 }
@@ -566,8 +599,8 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                     else serializer_addImpedance(impedance); // adding current voltage value for EMG read
                     if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
                         storage_buffer_length += serializer_serialize(storage_buffer);
-//                        serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-//                        print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+                        serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
+                        print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
                         Semaphore_post(storage_buffer_mailbox); // writing to the sd card
 //                        if (EMG) {
 //                            System_sprintf(uartBuf, "%u\n\r", adcValue);
@@ -575,6 +608,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
 //                        }
                     }
                 }
+
 
                 GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
 

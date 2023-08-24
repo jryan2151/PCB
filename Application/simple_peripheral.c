@@ -236,9 +236,9 @@ static uint8_t scanRspData[] = {
         'i',
         'c',
         'e',
-        ' ',
-        '3',
-        '6',
+        '1',
+        '0',
+        '1',
 
         // connection interval range
         0x05,// length of this data
@@ -272,7 +272,7 @@ static uint8_t advertData[] = {
         };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice 36";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "BACPACDevice101";
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -721,7 +721,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     const int LONG_SLEEP_TIME = 7000;
     const int SHORT_SLEEP_TIME = 1200;
     const int CHUNK_LENGTH = 528;
-    const bool FOURTYEIGHT = true; // adjust to true if running 48 hour code.
+    const bool FOURTYEIGHT = false; // adjust to true if running 48 hour code.
     int chunkSent = 0;
     short finished = 0;
     outputBuffer = malloc(sizeof(char) * 64);
