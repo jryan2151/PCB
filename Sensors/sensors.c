@@ -147,6 +147,7 @@ const uint8_t CALIBRATION_LIMITTHREE = 4; // the lower tap values don't quite re
 const uint8_t TAP_HIGHEST_VALUE = 254; // highest tap value possible
 const uint8_t TAP_LOWEST_VALUE = 1; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
+const uint8_t NUM_CYCLES_PER_EMG_OUTPUT = 6; // Has to be a factor  of 3
 const uint8_t lastAmp = 250; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
 const uint8_t V_ONE_THREE_DAC = 93; //Initialize all sensors to the value (in milli-amps) you want to run the signal.
 int8_t adjust_tap = 0; // p controller shifting tap value
@@ -158,7 +159,9 @@ float milvolt = 0;
 const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
 const bool FOURTYEIGHT = false; // runs 48 hour code. Will immediately start writing data to sd card when device turned on.
 const bool VONETHREE = true; // changes made to account for new board version 1.31. Set to true if handling new board.
-const bool EMG = false; // changes made to account for EMG.
+bool EMG = true; // changes made to account for EMG
+const bool EMGIMP = true; // setting this to true will output both EMG and Impedance. The frequency of each will depend on what these variables. NUM_CYCLES_PER_OUTPUT is the number of impedance samples per one outpu. NUM_CYCLES_PER_EMG_OUTPUT  is num of EMG samples per one output.  Code will always output one line EMG then one line impedance.
+bool sumSample = false;
 int readposition = 0;
 int startposition = 0;
 uint8_t AUTOMATE = 1; // AUTOCAL - increments tap.
@@ -435,7 +438,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                     successImpAdd[muxmod] += 1; // increment number of successful impedance values added this round
                 }
             }
-            if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
+            if (counterCYCLE < NUM_CYCLES_PER_EMG_OUTPUT && muxmod == 0){
                 counterCYCLE++;
             }
             GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
@@ -562,10 +565,23 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             }
             // increment the cycle count unless it stuttered
             if ((adcValue < 2950) || (stutter > 3)) {
-                if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
-                    counterCYCLE++;
+                if (EMG) {
+                    if (counterCYCLE < NUM_CYCLES_PER_EMG_OUTPUT && muxmod == 0){
+                        counterCYCLE++;
+                    }
+                    if (counterCYCLE >= NUM_CYCLES_PER_EMG_OUTPUT){
+                        sumSample = true;
+                    }
                 }
-                if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT){
+                else {
+                    if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
+                        counterCYCLE++;
+                    }
+                    if (counterCYCLE >= NUM_CYCLES_PER_OUTPUT) {
+                        sumSample = true;
+                    }
+                }
+                if (sumSample) {
                     if (EMG) {
                         if (successImpAdd[muxmod]){
                             milvolt = impSum[muxmod] / successImpAdd[muxmod];
@@ -582,6 +598,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                             impedance = 49999.99;
                         }
                     }
+                    sumSample = false;
                     impSum[muxmod] = 0;
                     successImpAdd[muxmod] = 0;
                     if (muxmod == (channels - 1))
@@ -636,6 +653,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             adcValue = 0;
             impedance = 0;
         }
+        if (EMGIMP) EMG = !EMG;
     }
     else if (counterDAC == 2){
         if (EMG){ //EMG Code collects 3 times as fast as normal impedance code
@@ -653,7 +671,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                     successImpAdd[muxmod] += 1; // increment number of successful impedance values added this round
                 }
            }
-           if (counterCYCLE < NUM_CYCLES_PER_OUTPUT && muxmod == 0){
+           if (counterCYCLE < NUM_CYCLES_PER_EMG_OUTPUT && muxmod == 0){
                counterCYCLE++;
            }
            GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
