@@ -591,7 +591,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                         }
                     }
                     else {
-                        if (successImpAdd[muxmod]){
+                        if (successImpAdd[muxmod]) {
                             impedance = impSum[muxmod] / successImpAdd[muxmod];
                         }
                         else {
@@ -601,8 +601,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
                     sumSample = false;
                     impSum[muxmod] = 0;
                     successImpAdd[muxmod] = 0;
-                    if (muxmod == (channels - 1))
-                        counterCYCLE = 0;
                     /* IMPORTANT: WRITE IMPEDANCE VALUE TO SD CARD AND/OR UART BUF */
                     if (serializer_isFull()){
                         if (FOURTYEIGHT) {
@@ -624,8 +622,11 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
 //                            print(uartBuf);
 //                        }
                     }
+                    if (muxmod == (channels - 1)){
+                        counterCYCLE = 0;
+                        if (EMGIMP) EMG = !EMG; // switch from imp to EMG or vice versa
+                    }
                 }
-
 
                 GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
 
@@ -653,7 +654,6 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
             adcValue = 0;
             impedance = 0;
         }
-        if (EMGIMP) EMG = !EMG;
     }
     else if (counterDAC == 2){
         if (EMG){ //EMG Code collects 3 times as fast as normal impedance code
