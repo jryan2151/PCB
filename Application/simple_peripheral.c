@@ -721,13 +721,14 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     const int LONG_SLEEP_TIME = 7000;
     const int SHORT_SLEEP_TIME = 1200;
     const int CHUNK_LENGTH = 528;
-    const bool FOURTYEIGHT = false; // adjust to true if running 48 hour code.
+    const bool FOURTYEIGHT = true; // adjust to true if running 48 hour code.
     int chunkSent = 0;
     short finished = 0;
     outputBuffer = malloc(sizeof(char) * 64);
     uint32_t flash_posit = 0;
     #define BUF_LEN 1
     #define SNV_ID_APP 0x8A
+    const uint16_t UNCORRUPSEC = 10000; //sectors before 10000 are subject to corruption
     const uint8_t SD_RAW_FACTOR = 33;
     const uint8_t RANGE_FACTOR = 33; // This number * 33 is the number of empty sectors between sections of raw data. This number * about 100 to get how many minutes of data you can record successfully.
     const uint32_t FLASH_FACTOR = SD_RAW_FACTOR * da_get_sector_size() * RANGE_FACTOR;
@@ -748,7 +749,7 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
                 if (snv_buf[0] > 0) {
                     da_set_write_pos(flash_posit + FLASH_FACTOR);
                 }
-                else da_set_write_pos(flash_posit);
+                else da_set_write_pos(flash_posit+(UNCORRUPSEC*da_get_sector_size()));
                 //change to 512000 for collecting data
 
                 // more accurate fourty eight hour code?
