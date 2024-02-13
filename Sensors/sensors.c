@@ -171,7 +171,7 @@ const float kp_value_high = .0065; // p controller
 const float kp_value_low = .002; // p controller
 const bool is_EMG_sensor[channels] = {0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0}; // Manufacturing Array Pins that we want to record EMG
 const uint8_t EMG_LARGEST_SENSOR = 11;
-const bool print_uart = true;
+const bool print_uart = false;
 
 // Board Type
 const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
@@ -383,7 +383,9 @@ void Sensors_init(){
         startposition = da_get_read_pos();
     }
     if (FOURTYEIGHT) Sensors_start_timers();
-    Sensors_start_timers();
+    if (print_uart){
+        Sensors_start_timers();
+    }
     if (VONETHREE) stutter = 10;
 }
 
