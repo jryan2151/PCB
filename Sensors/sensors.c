@@ -73,10 +73,6 @@
  hex converter: https://www.cs.princeton.edu/courses/archive/fall07/cos109/bc.html for Slave Address
  */
 
-/* 48 hour code Notes
-You also need to set the FOURTYEIGHT boolian in a different file to true -> FILE SIMPLE_PERIPHERAL.C -> LINE 710
- */
-
 // CODE VERSION 1.1
 /* C included packages */
 #include <stdint.h>
@@ -122,6 +118,8 @@ static PIN_Handle muxPinHandle2;
 static PIN_State muxPinState1;
 static PIN_State muxPinState2;
 
+// GPIO
+
 //////////////// Global Variables ///////////////////////
 
 // Unmodified - these values are not meant to be changed
@@ -143,10 +141,8 @@ int8_t adjust_tap = 0; // p controller shifting tap value
 long true_error = 0; // target_adc error for p controller - adcValue for current cycle
 bool sumSample = false; // Tells us when to sum an aggregation of reads
 int readposition = 0; // Sets read and start position
-int startposition = 0; // Sets read and start position
-unsigned char ucCommand[3];
+int startposition = 0; // Sets  read and start position
 const float MV_SCALE = 8.056640625; // (3300.0/4096.0) scale used to get actual milVolt reading
-uint8_t AUTOMATE = 1; // AUTOCAL - increments tap during automated calibration
 
 // Modifiable
 const uint16_t MUXFREQ = 800; // Frequency (the number of channels to be read per second). Must be less than half of DAC frequency (~line 320).
@@ -156,12 +152,7 @@ const uint16_t HIGHCUTSHIGH = 2770; // high tap values upper bound
 const uint16_t LOWCUTSHIGH = 2720; // high tap values lower bound
 const uint16_t HIGHCUTSLOW = 2500; // low tap values upper bound
 const uint16_t LOWCUTSLOW = 2250; // low tap values lower bound
-const uint16_t HIGHCUTSHIGHTHREE = 2700; // high tap values upper bound
-const uint16_t LOWCUTSHIGHTHREE = 2200; // high tap values lower bound
-const uint16_t HIGHCUTSLOWTHREE = 2700; // low tap values upper bound
-const uint16_t LOWCUTSLOWTHREE = 1000; // low tap values lower bound
 const uint8_t CALIBRATION_LIMIT = 8; // the lower tap values don't quite reach 3000 adc so we need lower cutoffs. This is the point where these different cutoffs apply.
-const uint8_t CALIBRATION_LIMITTHREE = 4; // the lower tap values don't quite reach 3000 adc so we need lower cutoffs. This is the point where these different cutoffs apply.
 const uint8_t TAP_HIGHEST_VALUE = 254; // highest tap value possible
 const uint8_t TAP_LOWEST_VALUE = 1; // lowest tap value possible
 const uint8_t NUM_CYCLES_PER_OUTPUT = 5; // How many cycles through DACTimerCallback before one output
@@ -170,11 +161,8 @@ const uint16_t target_adc = 2750; // target adc value for p controller
 const float kp_value_high = .0065; // p controller
 const float kp_value_low = .002; // p controller
 
-
 // Board Type and settings
 const bool print_uart = true;
-const bool CALIBRATE = false; // false runs functional code.  true runs calibration code
-const bool FOURTYEIGHT = false; // runs 48 hour code. Will immediately start writing data to sd card when device turned on.
 
 /* Starting sector to write/read to on the SD card*/
 #define STARTINGSECTOR 0
@@ -193,8 +181,8 @@ const bool FOURTYEIGHT = false; // runs 48 hour code. Will immediately start wri
         IOID_11 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX, //ENABLE
         IOID_1 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A3
         IOID_0 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A2
-        IOID_7 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A1
-        IOID_6 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A0
+        IOID_7 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A1  ---- NOT WORKING NEED TO FIX
+        IOID_6 | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL| PIN_DRVSTR_MAX, //A0  ---- NOT WORKING NEED TO FIX
     PIN_TERMINATE };
 
 ///////////////////////////////////// I2C preamble //////////////////////////
@@ -204,6 +192,10 @@ uint8_t rxBuffer2[0];          // Receive buffer for the DAC that is off. When w
 uint8_t txBuffer2[2];          // Transmit buffer for the DAC that is off.
 uint8_t rxBuffer3[1];          // Receive buffer for the potentiometer
 uint8_t txBuffer3[2];          // Transmit buffer for the potentiometer
+
+uint8_t rxBuffer4[2];          // Receive buffer for the EMG that is on.
+uint8_t txBuffer4[1];          // Transmit buffer for the EMG that is on.
+
 bool transferDone = false;     // signify the I2C has finished for this cycle
 bool openDone = true; // signify the I2C has opened successfully in order to transmit data
 uint8_t counterDAC = 0; // declaring the counterDac used in DACtimerCallback function
@@ -220,21 +212,35 @@ struct {
 
 static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool result);
 void DACtimerCallback(GPTimerCC26XX_Handle handle, GPTimerCC26XX_IntMask interruptMask);
-void muxPinReset1(uint8_t muxmod1_GS, bool autocal);
+void muxPinReset1(uint8_t muxmod1_GS);
 void muxPower1(uint8_t power);
-void muxPinReset2(uint8_t muxmod2_GS, bool autocal);
+void muxPinReset2(uint8_t muxmod2_GS);
 void muxPower2(uint8_t power);
+
+void GPIO_setup();
+void I2C_setup();
+void ADC_setup();
+void DAC_setup();
+void UART_setup();
+void MUX_setup();
+
+uint16_t read_EMG_ADC(void);
 
 /* Driver handles */
 GPTimerCC26XX_Handle hDACTimer;
 I2C_Handle I2Chandle;
 I2C_Params I2Cparams;
-I2C_Transaction i2cTrans1;
-I2C_Transaction i2cTrans2;
-I2C_Transaction i2cTrans3;
+
+I2C_Transaction i2cTrans1; // DAC I2C transaction
+I2C_Transaction i2cTrans2; // DAC I2C transaction Unused
+I2C_Transaction i2cTrans3; // potentiometer
+I2C_Transaction i2cTrans4; // EMG I2C transaction
+
+/* Pin Mapping */
+#define I2C_ADDR 0x50  // I2C address for ADC121C027 (ADDR pin = GND)
+#define ADC_REG  0x00  // ADC register to read from (change based on ADC datasheet)
 
 ///////////////////////////////////// ADC/Display Preamble /////////////////////////////////
-
 /* ADC Global Variables */
 ADC_Handle adc; // used in turning on adc
 ADC_Params params; // used in turning on adc
@@ -244,19 +250,90 @@ void uartCallback(UART_Handle handle, void *buf, size_t count){
     return;
 }
 
-//                              ======== MAIN THREAD ========
+bool check_pin_usage(uint8_t pin);
+void check_pin_6_and_7();
+
+//============================================== MAIN THREAD ==============================================
 // this function is run immediately when the PCB is programmed. Any time you reset the PCB it will run again.
 void Sensors_init(){
-    uartBuf = (char*) malloc(256 * sizeof(char));
+
+    uartBuf = (char*) malloc(256 * sizeof(char));\
+
+    // UART_setup();
+    // check_pin_6_and_7();
+
+    // Call Driver Init Functions
+    da_initialize();
+    ADC_setup();
+    GPIO_setup();
+    I2C_setup();
+    UART_setup();
+    DAC_setup();
+    MUX_setup();
 
     // Initialize Variables
     Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
 
-    // Call Driver Init Functions
-    I2C_init();
-    ADC_init();
+    Signal.ampAC = lastAmp; // High signal.
+    Signal.ampDC = 0; // reference signal.  Needs to be low so we can measure against it.
+    txBuffer1[0] = Signal.ampAC >> 8; //high byte
+    txBuffer1[1] = Signal.ampAC; //low byte
+    txBuffer2[0] = Signal.ampDC >> 8; //high byte.
+    txBuffer2[1] = Signal.ampDC; //low byte.
+    txBuffer4[0] = ADC_REG;  // Send register address to read from
+
+    I2C_transfer(I2Chandle, &i2cTrans1); // communication for the DAC that is currently ON.
+    I2C_transfer(I2Chandle, &i2cTrans2); // communication for the DAC that is currently OFF. Delete when confirmed we don't need it.
+
+    // set the mux configuration to array pin 0 which is really sensor 10 on the PCB
+    muxmod1 = 0;
+    muxPinReset1(muxmod1);
+
+    DA_get_status(da_load(), "Loading Disk"); // BLUETOOTH
+    startposition = da_get_read_pos();
+
+    if (print_uart){
+        Sensors_start_timers();
+    }
+}
+
+bool check_pin_usage(uint8_t pin) {
+    PIN_Config pinConfig = PIN_getConfig(pin);
+
+    // If the pin configuration is zero, it means it is not configured yet
+    if (pinConfig == 0) {
+        return false;  // Pin is not in use
+    }
+    return true;  // Pin is already configured
+}
+
+void check_pin_6_and_7() {
+    bool isPin6Used = check_pin_usage(IOID_6);
+    bool isPin7Used = check_pin_usage(IOID_7);
+
+    if (isPin6Used) {
+        if (isPin7Used) {
+            System_sprintf(uartBuf, "Pins 6 and 7 are already in use.\n");
+            print(uartBuf);
+        } else {
+            System_sprintf(uartBuf, "Pin 6 is already in use, 7 is not in use.\n");
+            print(uartBuf);
+        }
+    } else {
+        if (isPin7Used) {
+            System_sprintf(uartBuf, "Pin 7 is already in use, 6 is not in use.\n");
+            print(uartBuf);
+        } else {
+            System_sprintf(uartBuf, "Pins 6 and 7 are not in use.\n");
+            print(uartBuf);
+        }
+    }
+}
+
+// ============================================== Configuration Functions ==============================================
+
+void GPIO_setup(){
     GPIO_init();
-    da_initialize();
 
     ////////////////////////////////////////////// GPIO /////////////////////////////////////////
     /* Configure the LED pins */
@@ -271,6 +348,13 @@ void Sensors_init(){
     GPIO_setConfig(Board_DIO0, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     /* Turn on user LED */
     GPIO_write(Board_DIO0, 0);
+
+    GPIO_setConfig(IOID_30, GPIO_CFG_OUTPUT);  // Set ADDR pin as output (External ADC)
+    GPIO_write(IOID_30, 0);  // Set ADDR pin to 0 (modify if needed)     (External ADC)
+}
+
+void I2C_setup(){
+    I2C_init();
 
     ////////////////////////////////////////////// I2C //////////////////////////////////////////
     // Configure I2C parameters.
@@ -293,16 +377,27 @@ void Sensors_init(){
     i2cTrans3.readCount = 0;
     i2cTrans3.slaveAddress = 0x2C; // See data via Box-> Important Data Sheets for appropriate address for the Potentiometer.
 
-    /////////////////////////////////////////////////// UART //////////////////////////////////////////////////
-    UART_Params uartParams;
-    UART_init();
-    UART_Params_init(&uartParams);
-    uartParams.writeDataMode = UART_DATA_BINARY;
-    uartParams.writeMode = UART_MODE_CALLBACK;
-    uartParams.writeCallback = uartCallback;
-    uartParams.baudRate = 460800; // Baud Rate.
-    uart = UART_open(Board_UART0, &uartParams);
+    i2cTrans4.writeBuf = txBuffer4;
+    i2cTrans4.writeCount = 1;
+    i2cTrans4.readBuf = rxBuffer4;
+    i2cTrans4.readCount = 2;
+    i2cTrans4.slaveAddress = I2C_ADDR;
+}
 
+void ADC_setup(){
+
+    ADC_init();
+    //////////////////////////////////////////////////////////////////// MCU ADC //////////////////////////////////////////////////////////
+    ADC_Params_init(&params);
+    adc = ADC_open(1, &params);
+    if (adc == NULL){
+        System_sprintf(uartBuf, "Error Initializing ADC channel"); // Error initializing ADC channel 0
+        print(uartBuf);
+        while (1);
+    }
+}
+
+void DAC_setup(){
     ////////////////////////////////////////////// GPTimer for DAC //////////////////////////////////////////
     GPTimerCC26XX_Params paramsDAC;
     GPTimerCC26XX_Params_init(&paramsDAC);
@@ -327,8 +422,22 @@ void Sensors_init(){
         print(uartBuf);
         while (1);
     }
+}
 
-////////////////////////////////////////////////////////////////// MUX 1 and 2 //////////////////////////////////////////////////////////
+void UART_setup(){
+    /////////////////////////////////////////////////// UART //////////////////////////////////////////////////
+    UART_Params uartParams;
+    UART_init();
+    UART_Params_init(&uartParams);
+    uartParams.writeDataMode = UART_DATA_BINARY;
+    uartParams.writeMode = UART_MODE_CALLBACK;
+    uartParams.writeCallback = uartCallback;
+    uartParams.baudRate = 460800; // Baud Rate.
+    uart = UART_open(Board_UART0, &uartParams);
+}
+
+void MUX_setup(){
+    ////////////////////////////////////////////////////////////////// MUX 1 //////////////////////////////////////////////////////////
     muxPinHandle1 = PIN_open(&muxPinState1, muxPinTable1);
     if (!muxPinHandle1){
         /* Error initializing mux output pins */
@@ -336,8 +445,7 @@ void Sensors_init(){
         print(uartBuf);
         while (1);
     }
-
-
+    ////////////////////////////////////////////////////////////////// MUX 2 //////////////////////////////////////////////////////////
     muxPinHandle2 = PIN_open(&muxPinState2, muxPinTable2);
     if (!muxPinHandle2){
         /* Error initializing mux output pins */
@@ -345,41 +453,23 @@ void Sensors_init(){
         print(uartBuf);
         while (1);
     }
-
-//////////////////////////////////////////////////////////////////// ADC //////////////////////////////////////////////////////////
-    ADC_Params_init(&params);
-    adc = ADC_open(1, &params);
-    if (adc == NULL){
-        System_sprintf(uartBuf, "Error Initializing ADC channel"); //- isProtected = %s,\n custom: %p\n", params.isProtected ? "true" : "false", params.custom); // Error initializing ADC channel 0
-        print(uartBuf);
-        while (1);
-    }
-
-    Signal.ampAC = lastAmp; // High signal.
-    Signal.ampDC = 0; // reference signal.  Needs to be low so we can measure against it.
-    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-    txBuffer1[1] = Signal.ampAC; //low byte
-    txBuffer2[0] = Signal.ampDC >> 8; //high byte.
-    txBuffer2[1] = Signal.ampDC; //low byte.
-    I2C_transfer(I2Chandle, &i2cTrans1); // communication for the DAC that is currently ON.
-    I2C_transfer(I2Chandle, &i2cTrans2); // communication for the DAC that is currently OFF. Delete when confirmed we don't need it.
-
-    // set the mux configuration to array pin 0 which is really sensor 10 on the PCB
-    muxmod1 = 0;
-    muxPinReset1(muxmod1, CALIBRATE);
-    if (CALIBRATE) Sensors_start_timers(); // AUTOCAL - starts spitting out data immediately.
-    else {
-        DA_get_status(da_load(), "Loading Disk"); // BLUETOOTH
-        startposition = da_get_read_pos();
-    }
-    if (FOURTYEIGHT) Sensors_start_timers();
-    if (print_uart){
-        Sensors_start_timers();
-    }
 }
 
+/*This is an example how to call the external adc*/
+uint16_t read_EMG_ADC(void) {
+    if (I2C_transfer(I2Chandle, &i2cTrans4)) {
+        return (rxBuffer4[0] << 8) | rxBuffer4[1];  // Combine two bytes into 16-bit value
+    } else {
+        return 0xFFFF;  // Return error value if I2C transfer fails
+    }
 
-////////////////////////////////////////////// Functions used Later /////////////////////////////////////////
+    // HOW TO USE
+    // uint16_t adcValue = read_EMG_ADC();  // Read ADC value
+
+    // System_sprintf(uartBuf, "ADC Value: %d\n", adcValue);
+    // print(uartBuf);
+}
+// ============================================== Functions Used in Data Reads ==============================================
 
 void adc_read() {
     res1 = ADC_convert(adc, &adcValue); // read the current adc Value
@@ -393,8 +483,7 @@ void adc_read() {
 
 void load_serializer(uint16_t read_value) {
     if (serializer_isFull()){
-        if (FOURTYEIGHT) serializer_setTimestamp((uint16_t) (milliseconds/1000)); // checking if 16 impedance values have been added to the array
-        else serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
+        serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
     }
     serializer_addImpedance(read_value); //adding current value for  read
     if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
@@ -441,23 +530,6 @@ void set_impedance() {
     }
 }
 
-void adjust_pot_V_One_Three() { // adjust potentiometer value
-    if (sensorValues[muxmod1] > CALIBRATION_LIMITTHREE) {
-       if (adcValue < LOWCUTSHIGHTHREE) sensorValues[muxmod1]++; // move up a tap
-       else if (adcValue > HIGHCUTSHIGHTHREE) sensorValues[muxmod1]--; // move down a tap
-   }
-   else {
-       if (adcValue < LOWCUTSLOWTHREE) sensorValues[muxmod1]++; // move up a tap
-       else if (adcValue > HIGHCUTSLOWTHREE) sensorValues[muxmod1]--; // move down a tap
-   }
-   if (sensorValues[muxmod1] > TAP_HIGHEST_VALUE) {
-       sensorValues[muxmod1] = TAP_HIGHEST_VALUE; // if we are out of our tap value range we want to bring it back.
-   }
-   else if (sensorValues[muxmod1] < TAP_LOWEST_VALUE) {
-       sensorValues[muxmod1] = TAP_LOWEST_VALUE; // if we are out of our tap value range we want to bring it back.
-   }
-}
-
 void adjust_pot_V_One_Two() { // proportional integral controller
     if (adcValue < LOWCUTSHIGH){
         true_error = LOWCUTSHIGH - adcValue;
@@ -490,81 +562,56 @@ void check_cycle_count() {
    }
 }
 
-void calibration_output() {
-    if (muxmod1 == 0) {
-        System_sprintf(uartBuf, "%u,%u,%u,", (uint32_t) milliseconds, AUTOMATE, adcValue); // output time stamp, tap, adc value of current sensor
-        print(uartBuf);
-    }
-    else if (muxmod1 < 15) {
-        System_sprintf(uartBuf, "%u,", adcValue); // output adc Value of current sensor
-        print(uartBuf);
-    }
-    else {
-        System_sprintf(uartBuf, "%u\n\r", adcValue); // output adc value of current sensor and end line
-        print(uartBuf);
-        AUTOMATE++;
-        if (AUTOMATE > 254) AUTOMATE = 2; // calibrate from tap 2 to 253
-    }
-    muxmod1++;
-    if (muxmod1 == channels){
-        muxmod1 = 0; // reset counter back to zero if it equals the number of channels
-    }
-}
-
 /////////////////////////////////////////// I2C Functions /////////////////////////////////////////////////
+
 static void i2cWriteCallback(I2C_Handle handle, I2C_Transaction *transac, bool result){
     // Set length bytes
     if (result) transferDone = true;
     else transferDone = false; // Transaction failed, act accordingly...
 };
 
-////////////// FINITE STATE MACHINE - this is where the bulk of the functionality of this file takes place /////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////// FINITE STATE MACHINE - this is where the bulk of the functionality of this file takes place //////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interruptMask) {
-    if (counterDAC == 0){
-        ////////// ADC Read  ///////////
-        adc_read();
+    if (counterDAC == 0){  // This is the first case in our finite state machine, it reads in the current values
+        ////////// ADC Strain Read  ///////////
+        adc_read();                // Reads the current ADC value (internal ADC connected to the Strain reads) stores it to adcValue
         storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes. Don't know if necessary
 
-        muxPower1(0); // turn off MUX to conserve POWER
+        // TODO - READ IN THE EMG READINGS HERE
 
-        //AUTOCAL CODE
-        if (CALIBRATE){
-            calibration_output();
-        }
+        muxPower1(0); // turn off MUX to conserve POWER
+        muxPower2(0); // turn off MUX to conserve POWER
 
         ////////// CALCULATE IMPEDANCE //////////
-        set_impedance();
+        set_impedance();  // This function checks and/or fixes the adcValue and then calculates the impedance
 
-        counterDAC ++; // increments DACtimerCallback counter to 2
+        counterDAC ++; //increments DACtimerCallback counter to 1
     }
     else if (counterDAC == 1) {
 
-        if (CALIBRATE){}
-        else {
-            ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
-            adjust_pot_V_One_Two();
-            check_cycle_count();
+        ////////// CHANGE TAP VALUE FOR NEXT READ IF NECESSARY //////////
+        adjust_pot_V_One_Two(); // This function adjusts the tap value for the next read based on the current adcValue
+        check_cycle_count(); // We output an average of 5 reads, this checks the read count and if we are at 5 reads yet
 
-            Sensors_serializer_output();
-            GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
+        Sensors_serializer_output(); // If we are at 5 reads, this handles the output to either SD card or UART
+        GPIO_write(Board_GPIO_LED1, Board_GPIO_LED_OFF);
 
-            muxmod1++;
-            if (muxmod1 == channels) {
-                muxmod1 = 0; // reset counter back to zero if it equals the number of channels
-            }
+        muxmod1++;
+        if (muxmod1 == channels) {
+            muxmod1 = 0; // reset counter back to zero if it equals the number of channels
         }
 
-        counterDAC ++;
+        counterDAC ++; // increments DACtimerCallback counter to 2
     }
     else if (counterDAC == 2){
 
         /////////// RESET MUX FOR NEXT  READ ///////////
-        muxPinReset1(muxmod1, CALIBRATE); // convert the mux to new setting to account for next sensor channel
+        muxPinReset1(muxmod1); // convert the mux to new setting to account for next sensor channel
         txBuffer3[0] = 0; // 8 bit device so we don't need the high byte - transfers info to the hardware
-        // AUTOCAL CODE. Switches muxmod1 with AUTOMATE.
-        if (CALIBRATE) txBuffer3[1] = AUTOMATE;
-        else txBuffer3[1] = sensorValues[muxmod1];
+        txBuffer3[1] = sensorValues[muxmod1];
         I2C_transfer(I2Chandle, &i2cTrans3); // writes to the potentiometer the values from above over I2C communication.
         muxPower1(1); // turn on mux for next read
 
@@ -581,8 +628,8 @@ void muxPower1(uint8_t power){
 }
 
 void muxPower2(uint8_t power){
-        if (power == 1) PIN_setOutputValue(muxPinHandle1, IOID_28, 0);
-        if (power == 0) PIN_setOutputValue(muxPinHandle1, IOID_28, 1);
+    if (power == 1) PIN_setOutputValue(muxPinHandle2, IOID_11, 0);
+    if (power == 0) PIN_setOutputValue(muxPinHandle2, IOID_11, 1);
 }
 
 /* Every time we start recording data we need our time stamp and sensor channel to reset to 0 */
@@ -634,309 +681,205 @@ void print(char *str) {
     UART_write(uart, str, strlen(str));
 }
 
-// calibration code and functional code have different pin configurations - configuring the sensors to match the array pins
-void muxPinReset1(uint8_t muxmod1, bool autoCal) {
-    if (autoCal) {
-        switch (muxmod1) {
-        //  AUTOCAL CODE
-            case 14: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 13: // sensor 1 array pin 13
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 15: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 12: // ATUOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 11: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 10: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 9: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 0: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 1: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 2: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 3: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 4: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 5: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 6: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 7: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 8: // AUTOCAL
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-        }
-    }
-    else {
-        switch (muxmod1) {
-            case 10: //sensor 0 array pin 10
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 13: // sensor 1 array pin 13
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 11: // sensor 2 array pin 11
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 8: // sensor 3 array pin 8
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 14: //sensor 4 array pin 14
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 12: //sensor 5 array pin 12
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 15: //sensor 6 array pin 15
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 7: // sensor 7 array pin 7
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 4: // sensor 8 array pin 4
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 6: //sensor 9 array pin 6
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 0: // sensor 10 array pin 0
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 5: // sensor 11 array pin 5
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 2: // sensor 12 array pin 2
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 3: // sensor 13 array pin 3
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-            case 1: // sensor 14 array pin 1
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
-                break;
-            case 9: // sensor 15 array pin 9
-                PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
-                PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
-                PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
-                PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
-                break;
-        }
+void muxPinReset1(uint8_t muxmod1) {
+    switch (muxmod1) {
+        case 10: //sensor 0 array pin 10
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 13: // sensor 1 array pin 13
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 11: // sensor 2 array pin 11
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 8: // sensor 3 array pin 8
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 14: //sensor 4 array pin 14
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 12: //sensor 5 array pin 12
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 15: //sensor 6 array pin 15
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 7: // sensor 7 array pin 7
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 4: // sensor 8 array pin 4
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 6: //sensor 9 array pin 6
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 0: // sensor 10 array pin 0
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 5: // sensor 11 array pin 5
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 2: // sensor 12 array pin 2
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 3: // sensor 13 array pin 3
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+        case 1: // sensor 14 array pin 1
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 0); //S0
+            break;
+        case 9: // sensor 15 array pin 9
+            PIN_setOutputValue(muxPinHandle1, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle1, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle1, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle1, IOID_15, 1); //S0
+            break;
+
     }
 }
 
-void muxPinReset2(uint8_t muxmod2, bool autoCal) {
-      switch (muxmod2) {
-          case 10: //sensor 0 array pin 10
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 13: // sensor 1 array pin 13
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 11: // sensor 2 array pin 11
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 8: // sensor 3 array pin 8
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 14: //sensor 4 array pin 14
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 12: //sensor 5 array pin 12
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 15: //sensor 6 array pin 15
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 7: // sensor 7 array pin 7
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 4: // sensor 8 array pin 4
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 6: //sensor 9 array pin 6
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 0: // sensor 10 array pin 0
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 5: // sensor 11 array pin 5
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 2: // sensor 12 array pin 2
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 3: // sensor 13 array pin 3
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-          case 1: // sensor 14 array pin 1
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
-              break;
-          case 9: // sensor 15 array pin 9
-              PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
-              PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
-              PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
-              PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
-              break;
-      }
+void muxPinReset2(uint8_t muxmod2) {
+    switch (muxmod2) {
+        case 10: //sensor 0 array pin 10
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 13: // sensor 1 array pin 13
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 11: // sensor 2 array pin 11
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 8: // sensor 3 array pin 8
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 14: //sensor 4 array pin 14
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 12: //sensor 5 array pin 12
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 15: //sensor 6 array pin 15
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 7: // sensor 7 array pin 7
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 0); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 4: // sensor 8 array pin 4
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 6: //sensor 9 array pin 6
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 0: // sensor 10 array pin 0
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 5: // sensor 11 array pin 5
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 0); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 2: // sensor 12 array pin 2
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 3: // sensor 13 array pin 3
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 0); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+        case 1: // sensor 14 array pin 1
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 0); //S0
+            break;
+        case 9: // sensor 15 array pin 9
+            PIN_setOutputValue(muxPinHandle2, IOID_22, 1); //S3
+            PIN_setOutputValue(muxPinHandle2, IOID_23, 1); //S2
+            PIN_setOutputValue(muxPinHandle2, IOID_12, 1); //S1
+            PIN_setOutputValue(muxPinHandle2, IOID_15, 1); //S0
+            break;
+    }
 }
-

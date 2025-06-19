@@ -720,7 +720,6 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     const int LONG_SLEEP_TIME = 7000;
     const int SHORT_SLEEP_TIME = 1200;
     const int CHUNK_LENGTH = 528;
-    const bool FOURTYEIGHT = false; // adjust to true if running 48 hour code.
     int chunkSent = 0;
     short finished = 0;
     outputBuffer = malloc(sizeof(char) * 64);
@@ -732,40 +731,8 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
     const uint8_t RANGE_FACTOR = 33; // This number * 33 is the number of empty sectors between sections of raw data. This number * about 100 to get how many minutes of data you can record successfully.
     const uint32_t FLASH_FACTOR = SD_RAW_FACTOR * da_get_sector_size() * RANGE_FACTOR;
     //IMPORTANT! If you want to check if 48 hr collection is working for smaller run times. You need to change FLASH_FACTOR to 512. OTherwise your data will skip 1000 sectors between turning on/off.
-//    uint8_t help_multiply[BUF_LEN] = { 1,1,1,1,1,1,1,1,1,1 }; // more accurate fourty eight hour code?
     static uint8_t snv_buf[BUF_LEN] = {0};
-//    uint8_t trash[BUF_LEN] = { 0,0,0,0,0,0,0,0,0,0 }; // more accurate fourty eight hour code?
     uint8_t status = SUCCESS;
-
-    if (FOURTYEIGHT) {
-//        Read from SNV flash
-            status = osal_snv_read(SNV_ID_APP, BUF_LEN, (uint8_t* )snv_buf);
-            if (status != SUCCESS){
-            //Write first time to initialize SN V ID if the first read doesn't register
-                osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t*)snv_buf);
-        }
-                flash_posit = snv_buf[0] * FLASH_FACTOR;
-                if (snv_buf[0] > 0) {
-                    da_set_write_pos(flash_posit + FLASH_FACTOR);
-                }
-                else da_set_write_pos(flash_posit+(UNCORRUPSEC*da_get_sector_size()));
-                //change to 512000 for collecting data
-
-                // more accurate fourty eight hour code?
-//            for (uint8_t flash_iter = 0; flash_iter < BUF_LEN; flash_iter++) {
-//                if (snv_buf[flash_iter] > 0) {
-//                    help_multiply[flash_iter] = snv_buf[flash_iter];
-//                }
-//                flash_pos = flash_pos* help_multiply[flash_iter];
-//                }
-////            }
-//            da_set_write_pos(flash_pos);
-////            Task_sleep(LONG_SLEEP_TIME);
-//        }
-//        if (flash_pos < 100) {
-//            da_set_write_pos(4000);
-//        }
-    }
 
     // Application main loop
 
@@ -807,7 +774,6 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
             Semaphore_post(bacpac_channel_mutex);
             if (finished) {
                 da_commit();
-                if (FOURTYEIGHT) da_close();
             }
         }
 
@@ -948,27 +914,6 @@ static void SimplePeripheral_taskFxn(UArg a0, UArg a1)
 
         }
         Task_sleep(SHORT_SLEEP_TIME);
-        // FOURTY EIGHT HOUR CODE
-        if (FOURTYEIGHT) {
-            flash_posit = da_get_write_pos();
-
-            snv_buf[0] = flash_posit/FLASH_FACTOR;
-
-            // CHANGE TO 512000 for testing
-            status = osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t *)snv_buf);
-            // potentially more accurate fourty eight hour code below
-//        snv_buf[0] = da_get_write_pos()/256;
-//        for (unsigned int snv_iter = 0; snv_iter < BUF_LEN; snv_iter ++){
-//            if (snv_buf[snv_iter] > 250 && trash[snv_iter] !=1) {
-//                snv_buf[snv_iter+1]++;
-//                trash[snv_iter] = 1;
-//            }
-//            else {
-//                trash[snv_iter] = 0;
-//            }
-//            status = osal_snv_write(SNV_ID_APP, BUF_LEN, (uint8_t *)snv_buf[snv_iter]);
-//        }
-        }
     }
 
 }
