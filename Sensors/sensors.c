@@ -158,6 +158,7 @@ const float kp_value_low = .002; // p controller
 
 // Board Type and settings
 const bool print_uart = false;
+const bool FOURTYEIGHT = true;
 
 /* Starting sector to write/read to on the SD card*/
 #define STARTINGSECTOR 0
@@ -275,6 +276,10 @@ void Sensors_init(){
     startposition = da_get_read_pos();
 
     if (print_uart){
+        Sensors_start_timers();
+    }
+
+    if (FOURTYEIGHT) {
         Sensors_start_timers();
     }
 }
@@ -412,7 +417,8 @@ void adc_read() {
 
 void load_serializer(uint16_t read_value) {
     if (serializer_isFull()){
-        serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
+        if (FOURTYEIGHT) serializer_setTimestamp((uint16_t) (milliseconds/1000)); // checking if 16 impedance values have been added to the array
+        else serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
     }
     serializer_addImpedance(read_value); //adding current value for  read
     if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {

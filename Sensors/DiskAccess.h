@@ -20,7 +20,7 @@
 #define DISK_FAILED_WRITE   -4
 #define DISK_LOCKED         -5
 
-static unsigned int cur_sector_num = -1;
+extern uint32_t cur_sector_num;
 
 extern sem_t storage_mutex;
 
