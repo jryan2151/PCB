@@ -254,6 +254,8 @@ void Sensors_init(){
     DAC_setup();
     MUX_setup();
 
+    Storage_createTask();
+
     // Initialize Variables
     Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
 
@@ -417,19 +419,29 @@ void adc_read() {
 
 void load_serializer(uint16_t read_value) {
     if (serializer_isFull()){
-        if (FOURTYEIGHT) serializer_setTimestamp((uint16_t) (milliseconds/1000)); // checking if 16 impedance values have been added to the array
-        else serializer_setTimestamp((uint16_t) milliseconds); // checking if 16 impedance values have been added to the array
+        if (FOURTYEIGHT) serializer_setTimestamp((uint16_t)(milliseconds/1000));
+        else            serializer_setTimestamp((uint16_t)milliseconds);
     }
-    serializer_addImpedance(read_value); //adding current value for  read
-    if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, 0)) {
-        storage_buffer_length += serializer_serialize(storage_buffer);
-        if (print_uart){
-            serializer_serializeReadable(uartBuf); // convert serializer array so it is readable by UART (comment out if UART is unnecessary)
-            print(uartBuf); // write to the UART Buf (comment out if UART is unnecessary)
+
+    serializer_addImpedance(read_value);
+
+    if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, BIOS_NO_WAIT)) {
+        // Reset length ONLY while holding the mutex
+        storage_buffer_length = 0;
+
+        storage_buffer_length = serializer_serialize(storage_buffer);
+
+        if (print_uart) {
+            serializer_serializeReadable(uartBuf);
+            print(uartBuf);
         }
-        Semaphore_post(storage_buffer_mailbox); // writing to the sd card
+
+        // Signal the storage task; DO NOT release mutex here.
+        // Storage task will Semaphore_post(storage_buffer_mutex) after write.
+        Semaphore_post(storage_buffer_mailbox);
     }
 }
+
 
 // Function to output during standard testing
 void Sensors_serializer_output() {
@@ -513,7 +525,7 @@ void DACtimerCallback(GPTimerCC26XX_Handle handle,GPTimerCC26XX_IntMask interrup
     if (counterDAC == 0){  // This is the first case in our finite state machine, it reads in the current values
         ////////// ADC Strain Read  ///////////
         adc_read();                // Reads the current ADC value (internal ADC connected to the Strain reads) stores it to adcValue
-        storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes. Don't know if necessary
+//        storage_buffer_length = 0; // stores length of the data in the buffer. Useful for writing purposes. Don't know if necessary
 
 
         muxPower(0); // turn off MUX to conserve POWER
