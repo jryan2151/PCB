@@ -22,12 +22,18 @@ static char* txn_buffer;
 static unsigned long soft_read_pos;
 
 uint32_t cur_sector_num = 0U;
+static uint32_t current_session_id = 0;
+static char current_log_filename[32];
 
 int da_initialize() {
     FRESULT fr;
 
+    // First, try to unmount if already mounted
+    f_mount(NULL, "0:", 0);
+
     fr = f_mount(&g_sFatFs, "0:", 1);
     if (fr != FR_OK) {
+        System_printf("da_initialize: f_mount failed with error %d\n", fr);
         fs_mounted = 0;
         return DISK_FAILED_INIT;
     }
@@ -52,83 +58,171 @@ int da_initialize() {
 
     txn_buffer = (char *)malloc(sector_size * sizeof(char));
     if (!txn_buffer) {
+        System_printf("da_initialize: malloc failed for txn_buffer\n");
         f_mount(NULL, "0:", 1);
         fs_mounted = 0;
         return DISK_FAILED_INIT;
     }
 
     soft_read_pos = 0;
+
+    System_printf("da_initialize: Success - sector_size=%u, num_sectors=%u\n",
+                  sector_size, num_sectors);
+
+    return DISK_SUCCESS;
+}
+
+// Helper function to read session counter from index file
+static uint32_t da_read_session_counter() {
+    FRESULT fr;
+    FIL indexFile;
+    UINT br;
+    char buffer[32];
+    uint32_t session_id = 1;
+
+    fr = f_open(&indexFile, "session.idx", FA_READ);
+    if (fr == FR_OK) {
+        // File exists, read the session counter
+        memset(buffer, 0, sizeof(buffer));
+        fr = f_read(&indexFile, buffer, sizeof(buffer) - 1, &br);
+        if (fr == FR_OK && br > 0) {
+            buffer[br] = '\0';
+            session_id = (uint32_t)atoi(buffer);
+            if (session_id == 0) session_id = 1; // Safety check
+            System_printf("da_read_session_counter: Read session ID %lu from file\n", session_id);
+        } else {
+            System_printf("da_read_session_counter: Read failed, using default session ID 1\n");
+        }
+        f_close(&indexFile);
+    } else {
+        System_printf("da_read_session_counter: session.idx not found, using session ID 1\n");
+    }
+
+    return session_id;
+}
+
+// Helper function to write session counter to index file
+static int da_write_session_counter(uint32_t session_id) {
+    FRESULT fr;
+    FIL indexFile;
+    UINT bw;
+    char buffer[32];
+
+    fr = f_open(&indexFile, "session.idx", FA_WRITE | FA_CREATE_ALWAYS);
+    if (fr != FR_OK) {
+        System_printf("da_write_session_counter: Failed to open session.idx, error %d\n", fr);
+        return DISK_FAILED_WRITE;
+    }
+
+    System_sprintf(buffer, "%lu", session_id);
+    fr = f_write(&indexFile, buffer, strlen(buffer), &bw);
+    if (fr != FR_OK || bw != strlen(buffer)) {
+        System_printf("da_write_session_counter: Write failed, error %d\n", fr);
+        f_close(&indexFile);
+        return DISK_FAILED_WRITE;
+    }
+
+    f_sync(&indexFile);
+    f_close(&indexFile);
+
+    System_printf("da_write_session_counter: Wrote session ID %lu to file\n", session_id);
     return DISK_SUCCESS;
 }
 
 int da_load() {
-    if (!fs_mounted) return DISK_FAILED_INIT;
+    if (!fs_mounted) {
+        System_printf("da_load: Filesystem not mounted, calling da_initialize\n");
+        int result = da_initialize();
+        if (result != DISK_SUCCESS) {
+            System_printf("da_load: da_initialize failed\n");
+            return result;
+        }
+    }
 
     FRESULT fr;
-    UINT    br;
+    UINT    br, bw;
 
-    fr = f_open(&g_logFile, "log.bin", FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+    // Read current session counter and increment it
+    current_session_id = da_read_session_counter();
+
+    // Create new log filename for this session
+    System_sprintf(current_log_filename, "log_%03lu.bin", current_session_id);
+    System_printf("da_load: Creating new session file: %s\n", current_log_filename);
+
+    // Open the new session log file
+    fr = f_open(&g_logFile, current_log_filename, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
     if (fr != FR_OK) {
+        System_printf("da_load: Failed to create %s, error %d\n", current_log_filename, fr);
         return DISK_FAILED_INIT;
     }
 
-    DWORD fsize = f_size(&g_logFile);
-
-    if (fsize < sector_size) {
-        if (num_sectors == 0) {
-            num_sectors = 2047;
-            total_size  = (unsigned long long)num_sectors * sector_size;
-        }
-
-        DWORD newSize = (DWORD)(num_sectors + 1) * sector_size;
-
-        fr = f_lseek(&g_logFile, newSize - 1);
-        if (fr != FR_OK) return DISK_FAILED_INIT;
-
-        BYTE zero = 0;
-        fr = f_write(&g_logFile, &zero, 1, &br);
-        if (fr != FR_OK || br != 1) return DISK_FAILED_INIT;
-
-        write_pos = 0;
-        read_pos  = 0;
-
-        memset(txn_buffer, 0, sector_size);
-        f_lseek(&g_logFile, 0);
-        System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
-        fr = f_write(&g_logFile, txn_buffer, sector_size, &br);
-        if (fr != FR_OK || br != sector_size) return DISK_FAILED_WRITE;
-
-        f_sync(&g_logFile);
-    } else {
-        num_sectors = (unsigned int)(fsize / sector_size) - 1;
+    // Preallocate file space
+    if (num_sectors == 0) {
+        num_sectors = 2047;
         total_size  = (unsigned long long)num_sectors * sector_size;
+    }
 
-        f_lseek(&g_logFile, 0);
-        fr = f_read(&g_logFile, txn_buffer, sector_size, &br);
-        if (fr != FR_OK || br != sector_size) return DISK_FAILED_READ;
+    DWORD newSize = (DWORD)(num_sectors + 1) * sector_size;
 
-        int delimiter = 0;
-        int i = 0;
-        while (i < (int)sector_size) {
-            if (txn_buffer[i] == ':') {
-                delimiter = i;
-                break;
-            }
-            ++i;
-        }
+    System_printf("da_load: Preallocating file to %lu bytes\n", newSize);
 
-        if (delimiter) {
-            write_pos = atoi(txn_buffer);
-            read_pos  = atoi(txn_buffer + delimiter + 1);
-        } else {
-            write_pos = 0;
-            read_pos  = 0;
-        }
+    fr = f_lseek(&g_logFile, newSize - 1);
+    if (fr != FR_OK) {
+        System_printf("da_load: f_lseek failed, error %d\n", fr);
+        f_close(&g_logFile);
+        return DISK_FAILED_INIT;
+    }
+
+    BYTE zero = 0;
+    fr = f_write(&g_logFile, &zero, 1, &bw);
+    if (fr != FR_OK || bw != 1) {
+        System_printf("da_load: Preallocation write failed, error %d\n", fr);
+        f_close(&g_logFile);
+        return DISK_FAILED_INIT;
+    }
+
+    // Initialize positions for new session
+    write_pos = 0;
+    read_pos  = 0;
+
+    // Write initial metadata to first sector
+    memset(txn_buffer, 0, sector_size);
+    fr = f_lseek(&g_logFile, 0);
+    if (fr != FR_OK) {
+        System_printf("da_load: f_lseek to 0 failed, error %d\n", fr);
+        f_close(&g_logFile);
+        return DISK_FAILED_WRITE;
+    }
+
+    System_sprintf(txn_buffer, "SESSION:%lu:0:0", current_session_id);
+    fr = f_write(&g_logFile, txn_buffer, sector_size, &bw);
+    if (fr != FR_OK || bw != sector_size) {
+        System_printf("da_load: Metadata write failed, error %d, bytes written %u\n", fr, bw);
+        f_close(&g_logFile);
+        return DISK_FAILED_WRITE;
+    }
+
+    fr = f_sync(&g_logFile);
+    if (fr != FR_OK) {
+        System_printf("da_load: f_sync failed, error %d\n", fr);
+        f_close(&g_logFile);
+        return DISK_FAILED_WRITE;
+    }
+
+    System_printf("da_load: Metadata written successfully\n");
+
+    // Update session counter for next boot
+    uint32_t next_session_id = current_session_id + 1;
+    int result = da_write_session_counter(next_session_id);
+    if (result != DISK_SUCCESS) {
+        System_printf("da_load: Warning - failed to update session counter\n");
+        // Don't fail the entire load operation, just warn
     }
 
     cur_sector_num = -1;
     dirty = 0;
 
+    System_printf("da_load: Success - Session %lu ready\n", current_session_id);
     return DISK_SUCCESS;
 }
 
@@ -141,7 +235,10 @@ int da_clear() {
 
 int da_close() {
     int rc = da_commit();
-    if (rc != DISK_SUCCESS) return DISK_FAILED_WRITE;
+    if (rc != DISK_SUCCESS) {
+        System_printf("da_close: da_commit failed\n");
+        return DISK_FAILED_WRITE;
+    }
 
     if (fs_mounted) {
         f_close(&g_logFile);
@@ -154,6 +251,7 @@ int da_close() {
         txn_buffer = NULL;
     }
 
+    System_printf("da_close: Success\n");
     return DISK_SUCCESS;
 }
 
@@ -179,7 +277,7 @@ int da_commit() {
     cur_sector_num = -1;
 
     memset(txn_buffer, 0, sector_size);
-    System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
+    System_sprintf(txn_buffer, "SESSION:%lu:%ld:%ld", current_session_id, write_pos, read_pos);
 
     fr = f_lseek(&g_logFile, 0);
     if (fr != FR_OK) return DISK_FAILED_WRITE;
@@ -316,7 +414,7 @@ int da_read(char* buffer, int size) {
 // --------------------------------------------------------
 int da_get_data_size() {
     int size = (int)(write_pos - read_pos);
-    if (size < 0) size = (int)(total_size - size);  // same logic as original
+    if (size < 0) size = (int)(total_size - size);
     return size;
 }
 
@@ -356,4 +454,15 @@ int da_soft_rollback() {
 
 char* da_get_transaction_buffer() {
     return txn_buffer;
+}
+
+// --------------------------------------------------------
+// New helper functions for session management
+// --------------------------------------------------------
+uint32_t da_get_current_session_id() {
+    return current_session_id;
+}
+
+const char* da_get_current_filename() {
+    return current_log_filename;
 }

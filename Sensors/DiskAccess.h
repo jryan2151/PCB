@@ -62,4 +62,8 @@ int da_commit();
 // TODO: delete this function. Only adding it for debugging purposes. This is a dangerous function
 char* da_get_transaction_buffer();
 
+// New session management functions
+uint32_t da_get_current_session_id();
+const char* da_get_current_filename();
+
 #endif
