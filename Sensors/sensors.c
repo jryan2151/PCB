@@ -100,6 +100,7 @@
 #include <ti/drivers/SD.h>
 #include <xdc/runtime/System.h>
 #include <ti/sysbios/hal/Hwi.h>
+#include <ti/sysbios/knl/Clock.h>
 
 /* Board Header file */
 #include "Board.h"
@@ -108,6 +109,7 @@
 #include "Serializer.h"
 #include "sensors.h"
 #include "ImpedanceCalc.h"
+#include "ff.h"
 
 /////////////////////////// pin configuration ///////////////////////
 /* Pin driver handles */
@@ -237,44 +239,73 @@ void uartCallback(UART_Handle handle, void *buf, size_t count){
 }
 
 //============================================== MAIN THREAD ==============================================
-// this function is run immediately when the PCB is programmed. Any time you reset the PCB it will run again.
 void Sensors_init(){
+    uartBuf = (char*) malloc(256 * sizeof(char));
 
-    uartBuf = (char*) malloc(256 * sizeof(char));\
+    // Initialize UART FIRST
+    UART_init();
+    UART_Params uartParams;
+    UART_Params_init(&uartParams);
+    uartParams.writeDataMode = UART_DATA_BINARY;
+    uartParams.writeMode = UART_MODE_BLOCKING;
+    uartParams.baudRate = 460800;
+    uart = UART_open(Board_UART0, &uartParams);
 
-    // UART_setup();
-    // check_pin_6_and_7();
-
-    // Call Driver Init Functions
-    da_initialize();
+    // Call other Driver Init Functions
     ADC_setup();
     GPIO_setup();
     I2C_setup();
-    UART_setup();
     DAC_setup();
     MUX_setup();
 
-    Storage_createTask();
+    // Initialize SD card BEFORE da_initialize
+    SD_init();
+    Task_sleep(500);
+
+    // Initialize disk access
+    int result = da_initialize();
+
+    if (result != DISK_SUCCESS) {
+        DA_get_status(result, "Initialize Disk");
+        while(1) {
+            GPIO_toggle(Board_GPIO_LED0);
+            Task_sleep(100);
+        }
+    }
 
     // Initialize Variables
-    Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
+    Signal.ampAC = lastAmp;
+    Signal.ampDC = 0;
+    txBuffer1[0] = Signal.ampAC >> 8;
+    txBuffer1[1] = Signal.ampAC;
+    txBuffer2[0] = Signal.ampDC >> 8;
+    txBuffer2[1] = Signal.ampDC;
+    txBuffer4[0] = ADC_REG;
 
-    Signal.ampAC = lastAmp; // High signal.
-    Signal.ampDC = 0; // reference signal.  Needs to be low so we can measure against it.
-    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-    txBuffer1[1] = Signal.ampAC; //low byte
-    txBuffer2[0] = Signal.ampDC >> 8; //high byte.
-    txBuffer2[1] = Signal.ampDC; //low byte.
-    txBuffer4[0] = ADC_REG;  // Send register address to read from
+    I2C_transfer(I2Chandle, &i2cTrans1);
+    I2C_transfer(I2Chandle, &i2cTrans2);
 
-    I2C_transfer(I2Chandle, &i2cTrans1); // communication for the DAC that is currently ON.
-    I2C_transfer(I2Chandle, &i2cTrans2); // communication for the DAC that is currently OFF. Delete when confirmed we don't need it.
-
-    // set the mux configuration to array pin 0 which is really sensor 10 on the PCB
     muxmod = 0;
     muxPinReset(muxmod);
 
-    DA_get_status(da_load(), "Loading Disk"); // BLUETOOTH
+    UART_write(uart, "F\r\n", 3);  // Debug point F
+
+    // Load the disk
+    result = da_load();
+
+    UART_write(uart, "G\r\n", 3);  // Debug point G
+
+    DA_get_status(result, "Loading Disk");
+
+    if (result != DISK_SUCCESS) {
+        while(1) {
+            GPIO_toggle(Board_GPIO_LED1);
+            Task_sleep(100);
+        }
+    }
+
+    UART_write(uart, "H\r\n", 3);  // Debug point H
+
     startposition = da_get_read_pos();
 
     if (print_uart){
@@ -284,11 +315,10 @@ void Sensors_init(){
     if (FOURTYEIGHT) {
         Sensors_start_timers();
     }
+
+    UART_write(uart, "DONE\r\n", 6);  // All complete
 }
-
-
 // ============================================== Configuration Functions ==============================================
-
 void GPIO_setup(){
     GPIO_init();
 

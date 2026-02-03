@@ -1,13 +1,18 @@
 #include <stdint.h>
 #include <stdbool.h>
-
 #include "diskio.h"
 #include <ti/drivers/SD.h>
+#include <ti/drivers/UART.h>
 #include "Board.h"
+#include <string.h>
+
+extern UART_Handle uart;
+extern char* uartBuf;
 
 /* One logical drive: pdrv = 0 */
 static SD_Handle gSd = NULL;
 static DSTATUS   gStat = STA_NOINIT;
+
 
 DSTATUS disk_status(BYTE pdrv)
 {
@@ -19,23 +24,31 @@ DSTATUS disk_initialize(BYTE pdrv)
 {
     if (pdrv != 0) return STA_NOINIT;
 
-    SD_init();
+    // If already initialized, just return success
+    if (gSd != NULL && !(gStat & STA_NOINIT)) {
+        return gStat;
+    }
 
-    /* NOTE: If Board_SD0 doesn't exist, replace with CONFIG_SD0 */
-    gSd = SD_open(Board_SD0, NULL);
+    // Only open if not already open
     if (gSd == NULL) {
-        gStat = STA_NOINIT;
-        return gStat;
+        gSd = SD_open(Board_SD0, NULL);
+        if (gSd == NULL) {
+            gStat = STA_NOINIT;
+            return gStat;
+        }
     }
 
-    if (SD_initialize(gSd) != SD_STATUS_SUCCESS) {
-        SD_close(gSd);
-        gSd = NULL;
-        gStat = STA_NOINIT;
-        return gStat;
+    // Only initialize if status says we need to
+    if (gStat & STA_NOINIT) {
+        if (SD_initialize(gSd) != SD_STATUS_SUCCESS) {
+            SD_close(gSd);
+            gSd = NULL;
+            gStat = STA_NOINIT;
+            return gStat;
+        }
     }
 
-    gStat &= (DSTATUS)~STA_NOINIT;
+    gStat = 0;
     return gStat;
 }
 
@@ -44,8 +57,8 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
     if (pdrv != 0 || (gStat & STA_NOINIT) || gSd == NULL) return RES_NOTRDY;
     if (count == 0) return RES_PARERR;
 
-    return (SD_read(gSd, buff, (int_fast32_t)sector, (uint_fast32_t)count) == SD_STATUS_SUCCESS)
-           ? RES_OK : RES_ERROR;
+    int result = SD_read(gSd, buff, (int_fast32_t)sector, (uint_fast32_t)count);
+    return (result == SD_STATUS_SUCCESS) ? RES_OK : RES_ERROR;
 }
 
 #if FF_FS_READONLY == 0
@@ -91,10 +104,8 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
     }
 }
 
-/* Needed unless you set FF_FS_NORTC = 1 in ffconf.h */
 DWORD get_fattime(void)
 {
-    /* 2026-01-01 00:00:00 */
     DWORD year = (2026 - 1980);
     DWORD mon  = 1;
     DWORD day  = 1;

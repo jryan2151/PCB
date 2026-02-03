@@ -5,6 +5,10 @@
 
 #include "ff.h"
 #include "diskio.h"
+#include <ti/sysbios/knl/Task.h>
+#include <ti/drivers/UART.h>
+extern UART_Handle uart;  // Use the uart handle from sensors.c
+extern char* uartBuf;      // Use the buffer from sensors.c
 
 static FATFS g_sFatFs;
 static FIL   g_logFile;
@@ -28,15 +32,16 @@ static char current_log_filename[32];
 int da_initialize() {
     FRESULT fr;
 
-    // First, try to unmount if already mounted
     f_mount(NULL, "0:", 0);
+    Task_sleep(200);
 
-    fr = f_mount(&g_sFatFs, "0:", 1);
+    fr = f_mount(&g_sFatFs, "0:", 0);  // Delayed mount
+
     if (fr != FR_OK) {
-        System_printf("da_initialize: f_mount failed with error %d\n", fr);
         fs_mounted = 0;
         return DISK_FAILED_INIT;
     }
+
     fs_mounted = 1;
 
     WORD  phys_sector_size = 0;
@@ -58,16 +63,12 @@ int da_initialize() {
 
     txn_buffer = (char *)malloc(sector_size * sizeof(char));
     if (!txn_buffer) {
-        System_printf("da_initialize: malloc failed for txn_buffer\n");
         f_mount(NULL, "0:", 1);
         fs_mounted = 0;
         return DISK_FAILED_INIT;
     }
 
     soft_read_pos = 0;
-
-    System_printf("da_initialize: Success - sector_size=%u, num_sectors=%u\n",
-                  sector_size, num_sectors);
 
     return DISK_SUCCESS;
 }
@@ -130,31 +131,41 @@ static int da_write_session_counter(uint32_t session_id) {
 }
 
 int da_load() {
+//    UART_write(uart, "LOAD\r\n", 6);
+
     if (!fs_mounted) {
-        System_printf("da_load: Filesystem not mounted, calling da_initialize\n");
+        UART_write(uart, "REMOUNT\r\n", 9);
         int result = da_initialize();
         if (result != DISK_SUCCESS) {
-            System_printf("da_load: da_initialize failed\n");
             return result;
         }
     }
 
     FRESULT fr;
-    UINT    br, bw;
+    UINT br, bw;
 
-    // Read current session counter and increment it
+//    UART_write(uart, "SESSION\r\n", 9);
+
+    // Read current session counter
     current_session_id = da_read_session_counter();
+
+//    UART_write(uart, "FILENAME\r\n", 10);  // ADD THIS
 
     // Create new log filename for this session
     System_sprintf(current_log_filename, "log_%03lu.bin", current_session_id);
-    System_printf("da_load: Creating new session file: %s\n", current_log_filename);
+
+    UART_write(uart, "FOPEN\r\n", 7);  // ADD THIS
 
     // Open the new session log file
     fr = f_open(&g_logFile, current_log_filename, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+
+    UART_write(uart, "FOPEN_DONE\r\n", 12);  // ADD THIS
+
     if (fr != FR_OK) {
-        System_printf("da_load: Failed to create %s, error %d\n", current_log_filename, fr);
         return DISK_FAILED_INIT;
     }
+
+    UART_write(uart, "OPENED\r\n", 8);  // ADD THIS
 
     // Preallocate file space
     if (num_sectors == 0) {
@@ -164,58 +175,106 @@ int da_load() {
 
     DWORD newSize = (DWORD)(num_sectors + 1) * sector_size;
 
-    System_printf("da_load: Preallocating file to %lu bytes\n", newSize);
+    UART_write(uart, "SEEK\r\n", 6);  // ADD THIS
 
     fr = f_lseek(&g_logFile, newSize - 1);
+
+    UART_write(uart, "SEEK_DONE\r\n", 11);  // ADD THIS
+
+    System_printf("da_load: f_lseek returned %d\n", fr);
+    System_flush();
+
     if (fr != FR_OK) {
         System_printf("da_load: f_lseek failed, error %d\n", fr);
+        System_flush();
         f_close(&g_logFile);
         return DISK_FAILED_INIT;
     }
+
+    System_printf("da_load: Writing preallocation byte...\n");
+    System_flush();
 
     BYTE zero = 0;
     fr = f_write(&g_logFile, &zero, 1, &bw);
+
+    System_printf("da_load: f_write returned %d, wrote %u bytes\n", fr, bw);
+    System_flush();
+
     if (fr != FR_OK || bw != 1) {
         System_printf("da_load: Preallocation write failed, error %d\n", fr);
+        System_flush();
         f_close(&g_logFile);
         return DISK_FAILED_INIT;
     }
+
+    System_printf("da_load: Preallocation complete\n");
+    System_flush();
 
     // Initialize positions for new session
     write_pos = 0;
     read_pos  = 0;
 
     // Write initial metadata to first sector
+    System_printf("da_load: Preparing metadata...\n");
+    System_flush();
+
     memset(txn_buffer, 0, sector_size);
+
+    System_printf("da_load: Seeking to start of file...\n");
+    System_flush();
+
     fr = f_lseek(&g_logFile, 0);
     if (fr != FR_OK) {
         System_printf("da_load: f_lseek to 0 failed, error %d\n", fr);
+        System_flush();
         f_close(&g_logFile);
         return DISK_FAILED_WRITE;
     }
 
     System_sprintf(txn_buffer, "SESSION:%lu:0:0", current_session_id);
+
+    System_printf("da_load: Writing metadata sector...\n");
+    System_flush();
+
     fr = f_write(&g_logFile, txn_buffer, sector_size, &bw);
+
+    System_printf("da_load: Metadata write returned %d, wrote %u bytes\n", fr, bw);
+    System_flush();
+
     if (fr != FR_OK || bw != sector_size) {
         System_printf("da_load: Metadata write failed, error %d, bytes written %u\n", fr, bw);
+        System_flush();
         f_close(&g_logFile);
         return DISK_FAILED_WRITE;
     }
 
+    System_printf("da_load: Calling f_sync...\n");
+    System_flush();
+
     fr = f_sync(&g_logFile);
+
+    System_printf("da_load: f_sync returned %d\n", fr);
+    System_flush();
+
     if (fr != FR_OK) {
         System_printf("da_load: f_sync failed, error %d\n", fr);
+        System_flush();
         f_close(&g_logFile);
         return DISK_FAILED_WRITE;
     }
 
     System_printf("da_load: Metadata written successfully\n");
+    System_flush();
 
     // Update session counter for next boot
+    System_printf("da_load: Updating session counter to %lu...\n", current_session_id + 1);
+    System_flush();
+
     uint32_t next_session_id = current_session_id + 1;
     int result = da_write_session_counter(next_session_id);
     if (result != DISK_SUCCESS) {
         System_printf("da_load: Warning - failed to update session counter\n");
+        System_flush();
         // Don't fail the entire load operation, just warn
     }
 
@@ -223,6 +282,8 @@ int da_load() {
     dirty = 0;
 
     System_printf("da_load: Success - Session %lu ready\n", current_session_id);
+    System_flush();
+
     return DISK_SUCCESS;
 }
 
