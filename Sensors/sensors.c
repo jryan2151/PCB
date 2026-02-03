@@ -455,20 +455,29 @@ void load_serializer(uint16_t read_value) {
 
     serializer_addImpedance(read_value);
 
-    if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, BIOS_NO_WAIT)) {
-        // Reset length ONLY while holding the mutex
-        storage_buffer_length = 0;
+    if (serializer_isFull()) {
+        UART_write(uart, "SF\r\n", 4);  // Serializer Full
 
-        storage_buffer_length = serializer_serialize(storage_buffer);
+        if (Semaphore_pend(storage_buffer_mutex, BIOS_NO_WAIT)) {
+            UART_write(uart, "MX\r\n", 4);  // Mutex acquired
 
-        if (print_uart) {
-            serializer_serializeReadable(uartBuf);
-            print(uartBuf);
+            // Reset length ONLY while holding the mutex
+            storage_buffer_length = 0;
+
+            storage_buffer_length = serializer_serialize(storage_buffer);
+
+            if (print_uart) {
+                serializer_serializeReadable(uartBuf);
+                print(uartBuf);
+            }
+
+            // Signal the storage task; DO NOT release mutex here.
+            // Storage task will Semaphore_post(storage_buffer_mutex) after write.
+            Semaphore_post(storage_buffer_mailbox);
+            UART_write(uart, "MB\r\n", 4);  // Mailbox posted
+        } else {
+            UART_write(uart, "NM\r\n", 4);  // No Mutex (couldn't acquire)
         }
-
-        // Signal the storage task; DO NOT release mutex here.
-        // Storage task will Semaphore_post(storage_buffer_mutex) after write.
-        Semaphore_post(storage_buffer_mailbox);
     }
 }
 

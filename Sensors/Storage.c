@@ -1,7 +1,10 @@
 #include "Storage.h"
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/BIOS.h>
+#include <ti/drivers/UART.h>
 #include <stdlib.h>
+
+extern UART_Handle uart;
 
 #define STORAGE_TASK_PRIORITY       1
 
@@ -30,14 +33,32 @@ uint8_t getStatus() {
 }
 
 static void Storage_taskFxn(UArg a0, UArg a1) {
-    Storage_init();
+    // Note: Storage_init() is now called in Storage_createTask() to avoid race condition
+
+    UART_write(uart, "ST\r\n", 4);  // Storage Task started
 
     while (true) {
         Semaphore_pend(storage_buffer_mailbox, BIOS_WAIT_FOREVER);
         storage_status = 0;
 
-        if (da_write(storage_buffer, storage_buffer_length) != DISK_SUCCESS) storage_status = 1;
-        if (da_commit() != DISK_SUCCESS) storage_status = 1;
+        UART_write(uart, "SW\r\n", 4);  // Storage Write starting
+
+        int wr = da_write(storage_buffer, storage_buffer_length);
+        if (wr != DISK_SUCCESS) {
+            storage_status = 1;
+            UART_write(uart, "WF\r\n", 4);  // Write Failed
+        }
+
+        int cm = da_commit();
+        if (cm != DISK_SUCCESS) {
+            storage_status = 1;
+            UART_write(uart, "CF\r\n", 4);  // Commit Failed
+        }
+
+        if (storage_status == 0) {
+            UART_write(uart, "OK\r\n", 4);  // Write OK
+        }
+
         Semaphore_post(storage_buffer_mutex);
     }
 }
@@ -63,6 +84,9 @@ void Storage_init() {
 
 void Storage_createTask(void) {
   Task_Params taskParams;
+
+  // Initialize semaphores BEFORE creating the task to avoid race condition
+  Storage_init();
 
   // Configure task
   Task_Params_init(&taskParams);

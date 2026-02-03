@@ -284,6 +284,7 @@ int da_load() {
     System_printf("da_load: Success - Session %lu ready\n", current_session_id);
     System_flush();
 
+    UART_write(uart, "LD+\r\n", 5);  // Load: Success
     return DISK_SUCCESS;
 }
 
@@ -318,7 +319,10 @@ int da_close() {
 
 
 int da_commit() {
-    if (!fs_mounted) return DISK_NULL_HANDLE;
+    if (!fs_mounted) {
+        UART_write(uart, "CNM\r\n", 5);  // Commit: Not Mounted
+        return DISK_NULL_HANDLE;
+    }
 
     FRESULT fr;
     UINT    bw;
@@ -327,10 +331,16 @@ int da_commit() {
         DWORD dataOffset = (DWORD)(cur_sector_num + 1) * sector_size;
 
         fr = f_lseek(&g_logFile, dataOffset);
-        if (fr != FR_OK) return DISK_FAILED_WRITE;
+        if (fr != FR_OK) {
+            UART_write(uart, "CS1\r\n", 5);  // Commit: Seek1 failed
+            return DISK_FAILED_WRITE;
+        }
 
         fr = f_write(&g_logFile, txn_buffer, sector_size, &bw);
-        if (fr != FR_OK || bw != sector_size) return DISK_FAILED_WRITE;
+        if (fr != FR_OK || bw != sector_size) {
+            UART_write(uart, "CW1\r\n", 5);  // Commit: Write1 failed
+            return DISK_FAILED_WRITE;
+        }
 
         dirty = 0;
     }
@@ -341,14 +351,24 @@ int da_commit() {
     System_sprintf(txn_buffer, "SESSION:%lu:%ld:%ld", current_session_id, write_pos, read_pos);
 
     fr = f_lseek(&g_logFile, 0);
-    if (fr != FR_OK) return DISK_FAILED_WRITE;
+    if (fr != FR_OK) {
+        UART_write(uart, "CS2\r\n", 5);  // Commit: Seek2 failed
+        return DISK_FAILED_WRITE;
+    }
 
     fr = f_write(&g_logFile, txn_buffer, sector_size, &bw);
-    if (fr != FR_OK || bw != sector_size) return DISK_FAILED_WRITE;
+    if (fr != FR_OK || bw != sector_size) {
+        UART_write(uart, "CW2\r\n", 5);  // Commit: Write2 failed
+        return DISK_FAILED_WRITE;
+    }
 
     fr = f_sync(&g_logFile);
-    if (fr != FR_OK) return DISK_FAILED_WRITE;
+    if (fr != FR_OK) {
+        UART_write(uart, "CSY\r\n", 5);  // Commit: Sync failed
+        return DISK_FAILED_WRITE;
+    }
 
+    UART_write(uart, "C+\r\n", 4);  // Commit: Success
     return DISK_SUCCESS;
 }
 
@@ -414,7 +434,10 @@ int da_get_read_sector(int sector) {
 // Byte-wise read/write into circular buffer (unchanged logic)
 // --------------------------------------------------------
 int da_write(char* buffer, int size) {
-    if (!fs_mounted) return DISK_NULL_HANDLE;
+    if (!fs_mounted) {
+        UART_write(uart, "WNM\r\n", 5);  // Write: Not Mounted
+        return DISK_NULL_HANDLE;
+    }
     int result = 0;
     int totalWritten = 0;
 
@@ -422,6 +445,7 @@ int da_write(char* buffer, int size) {
         if (write_pos / sector_size != (unsigned long)cur_sector_num) {
             result = da_get_read_sector(write_pos / sector_size);
             if (result < 0) {
+                UART_write(uart, "WGS\r\n", 5);  // Write: Get Sector failed
                 write_pos -= totalWritten;
                 return result;
             }
@@ -438,6 +462,7 @@ int da_write(char* buffer, int size) {
         totalWritten += nwrite;
         size        -= nwrite;
     }
+    UART_write(uart, "W+\r\n", 4);  // Write: Success
     return DISK_SUCCESS;
 }
 
