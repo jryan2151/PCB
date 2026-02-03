@@ -20,7 +20,7 @@
 #define DISK_FAILED_WRITE   -4
 #define DISK_LOCKED         -5
 
-static unsigned int cur_sector_num = -1;
+extern uint32_t cur_sector_num;
 
 extern sem_t storage_mutex;
 
@@ -61,5 +61,9 @@ int da_commit();
 
 // TODO: delete this function. Only adding it for debugging purposes. This is a dangerous function
 char* da_get_transaction_buffer();
+
+// New session management functions
+uint32_t da_get_current_session_id();
+const char* da_get_current_filename();
 
 #endif
