@@ -251,19 +251,19 @@ void Sensors_init(){
     uartParams.baudRate = 460800;
     uart = UART_open(Board_UART0, &uartParams);
 
-    // Call other Driver Init Functions
-    ADC_setup();
-    GPIO_setup();
-    I2C_setup();
-    DAC_setup();
-    MUX_setup();
+    UART_write(uart, "A\r\n", 3);  // Debug: Starting init
 
-    // Initialize SD card BEFORE da_initialize
+    // Initialize SD card FIRST, before other peripherals
+    // This ensures no SPI bus conflicts during SD init
     SD_init();
-    Task_sleep(500);
+    Task_sleep(1000);  // Give SD card more time to power up
 
-    // Initialize disk access
+    UART_write(uart, "B\r\n", 3);  // Debug: SD_init done
+
+    // Initialize disk access early
     int result = da_initialize();
+
+    UART_write(uart, "C\r\n", 3);  // Debug: da_initialize done
 
     if (result != DISK_SUCCESS) {
         DA_get_status(result, "Initialize Disk");
@@ -273,12 +273,12 @@ void Sensors_init(){
         }
     }
 
-    UART_write(uart, "F\r\n", 3);  // Debug point F
+    UART_write(uart, "D\r\n", 3);  // Debug: Before da_load
 
-    // Load the disk IMMEDIATELY after initialize, before any I2C activity
+    // Load the disk IMMEDIATELY after initialize
     result = da_load();
 
-    UART_write(uart, "G\r\n", 3);  // Debug point G
+    UART_write(uart, "E\r\n", 3);  // Debug: da_load done
 
     DA_get_status(result, "Loading Disk");
 
@@ -289,7 +289,14 @@ void Sensors_init(){
         }
     }
 
-    // Initialize Variables (moved after SD card is fully loaded)
+    // Call other Driver Init Functions AFTER SD card is ready
+    ADC_setup();
+    GPIO_setup();
+    I2C_setup();
+    DAC_setup();
+    MUX_setup();
+
+    // Initialize Variables
     Signal.ampAC = lastAmp;
     Signal.ampDC = 0;
     txBuffer1[0] = Signal.ampAC >> 8;

@@ -46,7 +46,22 @@ DSTATUS disk_initialize(BYTE pdrv)
     // Only initialize if status says we need to
     if (gStat & STA_NOINIT) {
         UART_write(uart, "DI:INIT\r\n", 9);  // SD_initialize starting
-        if (SD_initialize(gSd) != SD_STATUS_SUCCESS) {
+
+        // Try SD_initialize with retries
+        int retries = 3;
+        int initResult = SD_STATUS_ERROR;
+        while (retries > 0 && initResult != SD_STATUS_SUCCESS) {
+            initResult = SD_initialize(gSd);
+            if (initResult != SD_STATUS_SUCCESS) {
+                UART_write(uart, "DI:RETRY\r\n", 10);
+                retries--;
+                // Small delay between retries - use busy wait since Task_sleep may not be available
+                volatile int delay;
+                for (delay = 0; delay < 100000; delay++);
+            }
+        }
+
+        if (initResult != SD_STATUS_SUCCESS) {
             UART_write(uart, "DI:FAIL2\r\n", 10);  // SD_initialize failed
             SD_close(gSd);
             gSd = NULL;
