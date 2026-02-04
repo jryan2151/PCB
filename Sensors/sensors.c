@@ -98,6 +98,7 @@
 #include <xdc/runtime/Types.h>
 #include <xdc/runtime/Timestamp.h>
 #include <ti/drivers/SD.h>
+#include <ti/drivers/SPI.h>
 #include <xdc/runtime/System.h>
 #include <ti/sysbios/hal/Hwi.h>
 #include <ti/sysbios/knl/Clock.h>
@@ -259,6 +260,9 @@ void Sensors_init(){
     I2C_setup();
     DAC_setup();
     MUX_setup();
+
+    // Initialize SPI driver (required by SD driver)
+    SPI_init();
 
     // Initialize SD card BEFORE da_initialize
     SD_init();
