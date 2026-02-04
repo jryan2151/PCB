@@ -252,24 +252,19 @@ void Sensors_init(){
     uartParams.baudRate = 460800;
     uart = UART_open(Board_UART0, &uartParams);
 
-    UART_write(uart, "A\r\n", 3);  // Debug point F
+    UART_write(uart, "A\r\n", 3);  // Debug: Start
 
-    // Call other Driver Init Functions
-    ADC_setup();
-    GPIO_setup();
-    I2C_setup();
-    DAC_setup();
-    MUX_setup();
-
-    // Initialize SPI driver (required by SD driver)
+    // Initialize SPI and SD FIRST, before other peripherals that might interfere
     SPI_init();
+    UART_write(uart, "B\r\n", 3);  // Debug: SPI_init done
 
-    // Initialize SD card BEFORE da_initialize
     SD_init();
     Task_sleep(500);
+    UART_write(uart, "C\r\n", 3);  // Debug: SD_init done
 
     // Initialize disk access
     int result = da_initialize();
+    UART_write(uart, "D\r\n", 3);  // Debug: da_initialize done
 
     if (result != DISK_SUCCESS) {
         DA_get_status(result, "Initialize Disk");
@@ -278,6 +273,28 @@ void Sensors_init(){
             Task_sleep(100);
         }
     }
+
+    UART_write(uart, "E\r\n", 3);  // Debug: Before da_load
+
+    result = da_load();
+
+    UART_write(uart, "G\r\n", 3);  // Debug: da_load done
+
+    if (result != DISK_SUCCESS) {
+        DA_get_status(result, "Loading Disk");
+        while(1) {
+            Task_sleep(100);
+        }
+    }
+
+    UART_write(uart, "H\r\n", 3);  // Debug: SD success, init other peripherals
+
+    // Call other Driver Init Functions AFTER SD is working
+    ADC_setup();
+    GPIO_setup();
+    I2C_setup();
+    DAC_setup();
+    MUX_setup();
 
     // Initialize Variables
     Signal.ampAC = lastAmp;
@@ -293,24 +310,6 @@ void Sensors_init(){
 
     muxmod = 0;
     muxPinReset(muxmod);
-
-    UART_write(uart, "F\r\n", 3);  // Debug point F
-
-    // Load the disk
-    result = da_load();
-
-    UART_write(uart, "G\r\n", 3);  // Debug point G
-
-    DA_get_status(result, "Loading Disk");
-
-    if (result != DISK_SUCCESS) {
-        while(1) {
-            GPIO_toggle(Board_GPIO_LED1);
-            Task_sleep(100);
-        }
-    }
-
-    UART_write(uart, "H\r\n", 3);  // Debug point H
 
     startposition = da_get_read_pos();
 
