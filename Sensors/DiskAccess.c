@@ -10,6 +10,8 @@ static FATFS g_sFatFs;
 static FIL   g_logFile;
 static int   fs_mounted = 0;
 
+static char  g_logFileName[13];  // "logNNN.bin" + null
+
 
 static unsigned long write_pos;
 static unsigned long read_pos;
@@ -22,6 +24,30 @@ static char* txn_buffer;
 static unsigned long soft_read_pos;
 
 uint32_t cur_sector_num = 0U;
+
+// Build filename: "log1.bin", "log2.bin", ... "log999.bin"
+static void build_filename(int n) {
+    g_logFileName[0] = 'l';
+    g_logFileName[1] = 'o';
+    g_logFileName[2] = 'g';
+    int pos = 3;
+    if (n >= 100) {
+        g_logFileName[pos++] = '0' + (n / 100);
+        n %= 100;
+        g_logFileName[pos++] = '0' + (n / 10);
+        g_logFileName[pos++] = '0' + (n % 10);
+    } else if (n >= 10) {
+        g_logFileName[pos++] = '0' + (n / 10);
+        g_logFileName[pos++] = '0' + (n % 10);
+    } else {
+        g_logFileName[pos++] = '0' + n;
+    }
+    g_logFileName[pos++] = '.';
+    g_logFileName[pos++] = 'b';
+    g_logFileName[pos++] = 'i';
+    g_logFileName[pos++] = 'n';
+    g_logFileName[pos] = '\0';
+}
 
 int da_initialize() {
     FRESULT fr;
@@ -66,65 +92,58 @@ int da_load() {
 
     FRESULT fr;
     UINT    br;
+    FIL     testFile;
+    int     n;
 
-    fr = f_open(&g_logFile, "log.bin", FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+    // Find next available log number by checking which files exist
+    for (n = 1; n <= 999; n++) {
+        build_filename(n);
+        fr = f_open(&testFile, g_logFileName, FA_READ);
+        if (fr == FR_NO_FILE) {
+            // This file doesn't exist - use it
+            break;
+        }
+        if (fr == FR_OK) {
+            f_close(&testFile);
+            // File exists, try next number
+        }
+        // On other errors, just try to use this filename
+        if (fr != FR_OK && fr != FR_NO_FILE) {
+            break;
+        }
+    }
+
+    // Create the new log file
+    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
     if (fr != FR_OK) {
         return DISK_FAILED_INIT;
     }
 
-    DWORD fsize = f_size(&g_logFile);
-
-    if (fsize < sector_size) {
-        if (num_sectors == 0) {
-            num_sectors = 2047;
-            total_size  = (unsigned long long)num_sectors * sector_size;
-        }
-
-        DWORD newSize = (DWORD)(num_sectors + 1) * sector_size;
-
-        fr = f_lseek(&g_logFile, newSize - 1);
-        if (fr != FR_OK) return DISK_FAILED_INIT;
-
-        BYTE zero = 0;
-        fr = f_write(&g_logFile, &zero, 1, &br);
-        if (fr != FR_OK || br != 1) return DISK_FAILED_INIT;
-
-        write_pos = 0;
-        read_pos  = 0;
-
-        memset(txn_buffer, 0, sector_size);
-        f_lseek(&g_logFile, 0);
-        System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
-        fr = f_write(&g_logFile, txn_buffer, sector_size, &br);
-        if (fr != FR_OK || br != sector_size) return DISK_FAILED_WRITE;
-
-        f_sync(&g_logFile);
-    } else {
-        num_sectors = (unsigned int)(fsize / sector_size) - 1;
+    // Initialize the new file
+    if (num_sectors == 0) {
+        num_sectors = 2047;
         total_size  = (unsigned long long)num_sectors * sector_size;
-
-        f_lseek(&g_logFile, 0);
-        fr = f_read(&g_logFile, txn_buffer, sector_size, &br);
-        if (fr != FR_OK || br != sector_size) return DISK_FAILED_READ;
-
-        int delimiter = 0;
-        int i = 0;
-        while (i < (int)sector_size) {
-            if (txn_buffer[i] == ':') {
-                delimiter = i;
-                break;
-            }
-            ++i;
-        }
-
-        if (delimiter) {
-            write_pos = atoi(txn_buffer);
-            read_pos  = atoi(txn_buffer + delimiter + 1);
-        } else {
-            write_pos = 0;
-            read_pos  = 0;
-        }
     }
+
+    DWORD newSize = (DWORD)(num_sectors + 1) * sector_size;
+
+    fr = f_lseek(&g_logFile, newSize - 1);
+    if (fr != FR_OK) return DISK_FAILED_INIT;
+
+    BYTE zero = 0;
+    fr = f_write(&g_logFile, &zero, 1, &br);
+    if (fr != FR_OK || br != 1) return DISK_FAILED_INIT;
+
+    write_pos = 0;
+    read_pos  = 0;
+
+    memset(txn_buffer, 0, sector_size);
+    f_lseek(&g_logFile, 0);
+    System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
+    fr = f_write(&g_logFile, txn_buffer, sector_size, &br);
+    if (fr != FR_OK || br != sector_size) return DISK_FAILED_WRITE;
+
+    f_sync(&g_logFile);
 
     cur_sector_num = -1;
     dirty = 0;
