@@ -93,8 +93,9 @@ int da_load() {
     FRESULT fr;
     UINT    br;
 
-    // Test with literal string
-    fr = f_open(&g_logFile, "log1.bin", FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+    // Build filename and open
+    build_filename(1);
+    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
     if (fr != FR_OK) {
         return DISK_FAILED_INIT;
     }
