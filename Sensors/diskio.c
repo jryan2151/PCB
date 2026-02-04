@@ -12,6 +12,7 @@ extern char* uartBuf;
 /* One logical drive: pdrv = 0 */
 static SD_Handle gSd = NULL;
 static DSTATUS   gStat = STA_NOINIT;
+static int       gInitFailed = 0;  // Flag to prevent repeated init attempts
 
 
 DSTATUS disk_status(BYTE pdrv)
@@ -25,6 +26,12 @@ DSTATUS disk_initialize(BYTE pdrv)
     UART_write(uart, "DI\r\n", 4);  // Disk Initialize starting
     if (pdrv != 0) return STA_NOINIT;
 
+    // If we already failed init, don't try again (prevents hang on repeated attempts)
+    if (gInitFailed) {
+        UART_write(uart, "DI:SKIP\r\n", 9);  // Skipping - already failed
+        return STA_NOINIT;
+    }
+
     // If already initialized, just return success
     if (gSd != NULL && !(gStat & STA_NOINIT)) {
         UART_write(uart, "DI:OK\r\n", 7);  // Already initialized
@@ -37,6 +44,7 @@ DSTATUS disk_initialize(BYTE pdrv)
         gSd = SD_open(Board_SD0, NULL);
         if (gSd == NULL) {
             UART_write(uart, "DI:FAIL1\r\n", 10);  // SD_open failed
+            gInitFailed = 1;
             gStat = STA_NOINIT;
             return gStat;
         }
@@ -47,48 +55,16 @@ DSTATUS disk_initialize(BYTE pdrv)
     if (gStat & STA_NOINIT) {
         UART_write(uart, "DI:INIT\r\n", 9);  // SD_initialize starting
 
-        // Try SD_initialize with retries, closing/reopening between attempts
-        int retries = 5;  // More retries
-        int initResult = SD_STATUS_ERROR;
-
-        while (retries > 0) {
-            UART_write(uart, "DI:TRY\r\n", 8);  // About to call SD_initialize
-            initResult = SD_initialize(gSd);
-            UART_write(uart, "DI:RET\r\n", 8);  // SD_initialize returned
-
-            if (initResult == SD_STATUS_SUCCESS) {
-                break;  // Success!
-            }
-
-            UART_write(uart, "DI:RETRY\r\n", 10);
-            retries--;
-
-            if (retries == 0) break;  // Don't close/reopen on last failure
-
-            // Close and reopen the SD driver to reset state
-            SD_close(gSd);
-            gSd = NULL;
-
-            // Much longer delay between retries (give card time to reset)
-            volatile int delay;
-            for (delay = 0; delay < 2000000; delay++);
-
-            // Reopen
-            gSd = SD_open(Board_SD0, NULL);
-            if (gSd == NULL) {
-                UART_write(uart, "DI:REOPEN_FAIL\r\n", 16);
-                gStat = STA_NOINIT;
-                return gStat;
-            }
-            UART_write(uart, "DI:REOPENED\r\n", 13);
-        }
+        // Try SD_initialize - just once, no retries (retries cause state corruption)
+        UART_write(uart, "DI:TRY\r\n", 8);
+        int initResult = SD_initialize(gSd);
+        UART_write(uart, "DI:RET\r\n", 8);
 
         if (initResult != SD_STATUS_SUCCESS) {
             UART_write(uart, "DI:FAIL2\r\n", 10);  // SD_initialize failed
-            if (gSd != NULL) {
-                SD_close(gSd);
-                gSd = NULL;
-            }
+            SD_close(gSd);
+            gSd = NULL;
+            gInitFailed = 1;  // Mark as failed to prevent repeated attempts
             gStat = STA_NOINIT;
             return gStat;
         }
