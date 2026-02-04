@@ -6,6 +6,7 @@
 
 extern Semaphore_Handle storage_buffer_mailbox;
 extern Semaphore_Handle storage_buffer_mutex;
+extern Semaphore_Handle storage_init_complete;
 
 extern char storage_buffer[];
 extern uint8_t storage_buffer_length;

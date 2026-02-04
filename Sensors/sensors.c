@@ -317,6 +317,9 @@ void Sensors_init(){
     }
 
     UART_write(uart, "DONE\r\n", 6);  // All complete
+
+    // Signal to Storage task that initialization is complete
+    Semaphore_post(storage_init_complete);
 }
 // ============================================== Configuration Functions ==============================================
 void GPIO_setup(){
