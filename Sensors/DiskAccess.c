@@ -92,26 +92,23 @@ int da_load() {
 
     FRESULT fr;
     UINT    br;
-    FIL     testFile;
     int     n;
 
-    // Find next available log number by trying to open each file
+    // Find next available log number by trying to create each file
+    // FA_CREATE_NEW fails if file already exists
     for (n = 1; n <= 999; n++) {
         build_filename(n);
-        fr = f_open(&testFile, g_logFileName, FA_READ | FA_OPEN_EXISTING);
-        if (fr == FR_NO_FILE || fr == FR_NO_PATH) {
-            // File doesn't exist - use this number
+        fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_NEW);
+        if (fr == FR_OK) {
+            // Successfully created new file - use it
             break;
         }
-        if (fr == FR_OK) {
-            // File exists - close it and try next
-            f_close(&testFile);
-        }
+        // FR_EXIST means file exists, try next number
+        // Any other error, also try next number
     }
 
-    // Create the new log file
-    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
     if (fr != FR_OK) {
+        // Couldn't create any file
         return DISK_FAILED_INIT;
     }
 
