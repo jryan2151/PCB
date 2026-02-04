@@ -20,6 +20,8 @@ Semaphore_Struct storage_buffer_mailbox_struct;
 Semaphore_Handle storage_buffer_mailbox;
 Semaphore_Struct storage_buffer_mutex_struct;
 Semaphore_Handle storage_buffer_mutex;
+Semaphore_Struct storage_init_complete_struct;
+Semaphore_Handle storage_init_complete;
 
 char storage_buffer[STORAGE_BUF_SIZE];
 uint8_t storage_buffer_length;
@@ -34,6 +36,9 @@ uint8_t getStatus() {
 
 static void Storage_taskFxn(UArg a0, UArg a1) {
     // Note: Storage_init() is now called in Storage_createTask() to avoid race condition
+
+    // Wait for sensors/UART/disk initialization to complete before starting
+    Semaphore_pend(storage_init_complete, BIOS_WAIT_FOREVER);
 
     UART_write(uart, "ST\r\n", 4);  // Storage Task started
 
@@ -66,20 +71,23 @@ static void Storage_taskFxn(UArg a0, UArg a1) {
 void Storage_init() {
     Semaphore_Params bufParams;
     Semaphore_Params mailParams;
-
+    Semaphore_Params initParams;
 
     Semaphore_Params_init(&bufParams);
     Semaphore_Params_init(&mailParams);
+    Semaphore_Params_init(&initParams);
 
     bufParams.mode = Semaphore_Mode_BINARY;
     mailParams.mode = Semaphore_Mode_BINARY;
+    initParams.mode = Semaphore_Mode_BINARY;
 
     Semaphore_construct(&storage_buffer_mutex_struct, 1, &bufParams);
     Semaphore_construct(&storage_buffer_mailbox_struct, 0, &mailParams);
+    Semaphore_construct(&storage_init_complete_struct, 0, &initParams);  // Starts at 0, blocks until posted
 
     storage_buffer_mutex = Semaphore_handle(&storage_buffer_mutex_struct);
     storage_buffer_mailbox = Semaphore_handle(&storage_buffer_mailbox_struct);
-
+    storage_init_complete = Semaphore_handle(&storage_init_complete_struct);
 }
 
 void Storage_createTask(void) {
