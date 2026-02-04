@@ -48,11 +48,14 @@ DSTATUS disk_initialize(BYTE pdrv)
         UART_write(uart, "DI:INIT\r\n", 9);  // SD_initialize starting
 
         // Try SD_initialize with retries, closing/reopening between attempts
-        int retries = 3;
+        int retries = 5;  // More retries
         int initResult = SD_STATUS_ERROR;
 
         while (retries > 0) {
+            UART_write(uart, "DI:TRY\r\n", 8);  // About to call SD_initialize
             initResult = SD_initialize(gSd);
+            UART_write(uart, "DI:RET\r\n", 8);  // SD_initialize returned
+
             if (initResult == SD_STATUS_SUCCESS) {
                 break;  // Success!
             }
@@ -60,13 +63,15 @@ DSTATUS disk_initialize(BYTE pdrv)
             UART_write(uart, "DI:RETRY\r\n", 10);
             retries--;
 
+            if (retries == 0) break;  // Don't close/reopen on last failure
+
             // Close and reopen the SD driver to reset state
             SD_close(gSd);
             gSd = NULL;
 
-            // Longer delay between retries
+            // Much longer delay between retries (give card time to reset)
             volatile int delay;
-            for (delay = 0; delay < 500000; delay++);
+            for (delay = 0; delay < 2000000; delay++);
 
             // Reopen
             gSd = SD_open(Board_SD0, NULL);
@@ -80,8 +85,10 @@ DSTATUS disk_initialize(BYTE pdrv)
 
         if (initResult != SD_STATUS_SUCCESS) {
             UART_write(uart, "DI:FAIL2\r\n", 10);  // SD_initialize failed
-            SD_close(gSd);
-            gSd = NULL;
+            if (gSd != NULL) {
+                SD_close(gSd);
+                gSd = NULL;
+            }
             gStat = STA_NOINIT;
             return gStat;
         }
