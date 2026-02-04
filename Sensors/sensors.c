@@ -251,19 +251,21 @@ void Sensors_init(){
     uartParams.baudRate = 460800;
     uart = UART_open(Board_UART0, &uartParams);
 
-    UART_write(uart, "A\r\n", 3);  // Debug: Starting init
+    UART_write(uart, "A\r\n", 3);  // Debug point F
 
-    // Initialize SD card FIRST, before other peripherals
-    // This ensures no SPI bus conflicts during SD init
+    // Call other Driver Init Functions
+    ADC_setup();
+    GPIO_setup();
+    I2C_setup();
+    DAC_setup();
+    MUX_setup();
+
+    // Initialize SD card BEFORE da_initialize
     SD_init();
-    Task_sleep(2000);  // Give SD card 2 seconds to power up and stabilize
+    Task_sleep(500);
 
-    UART_write(uart, "B\r\n", 3);  // Debug: SD_init done
-
-    // Initialize disk access early
+    // Initialize disk access
     int result = da_initialize();
-
-    UART_write(uart, "C\r\n", 3);  // Debug: da_initialize done
 
     if (result != DISK_SUCCESS) {
         DA_get_status(result, "Initialize Disk");
@@ -272,29 +274,6 @@ void Sensors_init(){
             Task_sleep(100);
         }
     }
-
-    UART_write(uart, "D\r\n", 3);  // Debug: Before da_load
-
-    // Load the disk IMMEDIATELY after initialize
-    result = da_load();
-
-    UART_write(uart, "E\r\n", 3);  // Debug: da_load done
-
-    DA_get_status(result, "Loading Disk");
-
-    if (result != DISK_SUCCESS) {
-        while(1) {
-            GPIO_toggle(Board_GPIO_LED1);
-            Task_sleep(100);
-        }
-    }
-
-    // Call other Driver Init Functions AFTER SD card is ready
-    ADC_setup();
-    GPIO_setup();
-    I2C_setup();
-    DAC_setup();
-    MUX_setup();
 
     // Initialize Variables
     Signal.ampAC = lastAmp;
@@ -311,6 +290,22 @@ void Sensors_init(){
     muxmod = 0;
     muxPinReset(muxmod);
 
+    UART_write(uart, "F\r\n", 3);  // Debug point F
+
+    // Load the disk
+    result = da_load();
+
+    UART_write(uart, "G\r\n", 3);  // Debug point G
+
+    DA_get_status(result, "Loading Disk");
+
+    if (result != DISK_SUCCESS) {
+        while(1) {
+            GPIO_toggle(Board_GPIO_LED1);
+            Task_sleep(100);
+        }
+    }
+
     UART_write(uart, "H\r\n", 3);  // Debug point H
 
     startposition = da_get_read_pos();
@@ -324,9 +319,6 @@ void Sensors_init(){
     }
 
     UART_write(uart, "DONE\r\n", 6);  // All complete
-
-    // Signal to Storage task that initialization is complete
-    Semaphore_post(storage_init_complete);
 }
 // ============================================== Configuration Functions ==============================================
 void GPIO_setup(){
