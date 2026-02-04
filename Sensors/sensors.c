@@ -256,7 +256,7 @@ void Sensors_init(){
     // Initialize SD card FIRST, before other peripherals
     // This ensures no SPI bus conflicts during SD init
     SD_init();
-    Task_sleep(1000);  // Give SD card more time to power up
+    Task_sleep(2000);  // Give SD card 2 seconds to power up and stabilize
 
     UART_write(uart, "B\r\n", 3);  // Debug: SD_init done
 

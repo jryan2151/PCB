@@ -47,18 +47,35 @@ DSTATUS disk_initialize(BYTE pdrv)
     if (gStat & STA_NOINIT) {
         UART_write(uart, "DI:INIT\r\n", 9);  // SD_initialize starting
 
-        // Try SD_initialize with retries
+        // Try SD_initialize with retries, closing/reopening between attempts
         int retries = 3;
         int initResult = SD_STATUS_ERROR;
-        while (retries > 0 && initResult != SD_STATUS_SUCCESS) {
+
+        while (retries > 0) {
             initResult = SD_initialize(gSd);
-            if (initResult != SD_STATUS_SUCCESS) {
-                UART_write(uart, "DI:RETRY\r\n", 10);
-                retries--;
-                // Small delay between retries - use busy wait since Task_sleep may not be available
-                volatile int delay;
-                for (delay = 0; delay < 100000; delay++);
+            if (initResult == SD_STATUS_SUCCESS) {
+                break;  // Success!
             }
+
+            UART_write(uart, "DI:RETRY\r\n", 10);
+            retries--;
+
+            // Close and reopen the SD driver to reset state
+            SD_close(gSd);
+            gSd = NULL;
+
+            // Longer delay between retries
+            volatile int delay;
+            for (delay = 0; delay < 500000; delay++);
+
+            // Reopen
+            gSd = SD_open(Board_SD0, NULL);
+            if (gSd == NULL) {
+                UART_write(uart, "DI:REOPEN_FAIL\r\n", 16);
+                gStat = STA_NOINIT;
+                return gStat;
+            }
+            UART_write(uart, "DI:REOPENED\r\n", 13);
         }
 
         if (initResult != SD_STATUS_SUCCESS) {
