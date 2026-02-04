@@ -92,10 +92,22 @@ int da_load() {
 
     FRESULT fr;
     UINT    br;
+    FILINFO fno;
+    int     n;
 
-    // Build filename and open
-    build_filename(1);
-    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+    // Find next available log number
+    for (n = 1; n <= 999; n++) {
+        build_filename(n);
+        fr = f_stat(g_logFileName, &fno);
+        if (fr == FR_NO_FILE) {
+            // File doesn't exist - use this number
+            break;
+        }
+        // File exists or other error - try next number
+    }
+
+    // Create the new log file
+    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
     if (fr != FR_OK) {
         return DISK_FAILED_INIT;
     }
