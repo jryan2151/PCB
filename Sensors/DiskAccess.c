@@ -92,29 +92,12 @@ int da_load() {
 
     FRESULT fr;
     UINT    br;
-    FIL     testFile;
-    int     n;
 
-    // Find next available log number by checking which files exist
-    for (n = 1; n <= 999; n++) {
-        build_filename(n);
-        fr = f_open(&testFile, g_logFileName, FA_READ);
-        if (fr == FR_NO_FILE) {
-            // This file doesn't exist - use it
-            break;
-        }
-        if (fr == FR_OK) {
-            f_close(&testFile);
-            // File exists, try next number
-        }
-        // On other errors, just try to use this filename
-        if (fr != FR_OK && fr != FR_NO_FILE) {
-            break;
-        }
-    }
+    // Simple test: just create log1.bin directly
+    build_filename(1);
 
-    // Create the new log file
-    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+    // Create the new log file (same flags as original WL2 code)
+    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
     if (fr != FR_OK) {
         return DISK_FAILED_INIT;
     }
