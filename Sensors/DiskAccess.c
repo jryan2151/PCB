@@ -98,17 +98,20 @@ int da_load() {
     // FA_CREATE_NEW fails if file already exists
     for (n = 1; n <= 999; n++) {
         build_filename(n);
-        fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_NEW);
+        // Try to create with just FA_CREATE_NEW to test if file exists
+        fr = f_open(&g_logFile, g_logFileName, FA_CREATE_NEW | FA_WRITE);
         if (fr == FR_OK) {
-            // Successfully created new file - use it
-            break;
+            // Successfully created - close and reopen with full access
+            f_close(&g_logFile);
+            fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_EXISTING);
+            if (fr == FR_OK) {
+                break;  // Success
+            }
         }
-        // FR_EXIST means file exists, try next number
-        // Any other error, also try next number
+        // File exists (FR_EXIST) or other error - try next number
     }
 
     if (fr != FR_OK) {
-        // Couldn't create any file
         return DISK_FAILED_INIT;
     }
 
