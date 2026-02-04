@@ -273,7 +273,23 @@ void Sensors_init(){
         }
     }
 
-    // Initialize Variables
+    UART_write(uart, "F\r\n", 3);  // Debug point F
+
+    // Load the disk IMMEDIATELY after initialize, before any I2C activity
+    result = da_load();
+
+    UART_write(uart, "G\r\n", 3);  // Debug point G
+
+    DA_get_status(result, "Loading Disk");
+
+    if (result != DISK_SUCCESS) {
+        while(1) {
+            GPIO_toggle(Board_GPIO_LED1);
+            Task_sleep(100);
+        }
+    }
+
+    // Initialize Variables (moved after SD card is fully loaded)
     Signal.ampAC = lastAmp;
     Signal.ampDC = 0;
     txBuffer1[0] = Signal.ampAC >> 8;
@@ -287,22 +303,6 @@ void Sensors_init(){
 
     muxmod = 0;
     muxPinReset(muxmod);
-
-    UART_write(uart, "F\r\n", 3);  // Debug point F
-
-    // Load the disk
-    result = da_load();
-
-    UART_write(uart, "G\r\n", 3);  // Debug point G
-
-    DA_get_status(result, "Loading Disk");
-
-    if (result != DISK_SUCCESS) {
-        while(1) {
-            GPIO_toggle(Board_GPIO_LED1);
-            Task_sleep(100);
-        }
-    }
 
     UART_write(uart, "H\r\n", 3);  // Debug point H
 

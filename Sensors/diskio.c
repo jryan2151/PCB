@@ -22,33 +22,42 @@ DSTATUS disk_status(BYTE pdrv)
 
 DSTATUS disk_initialize(BYTE pdrv)
 {
+    UART_write(uart, "DI\r\n", 4);  // Disk Initialize starting
     if (pdrv != 0) return STA_NOINIT;
 
     // If already initialized, just return success
     if (gSd != NULL && !(gStat & STA_NOINIT)) {
+        UART_write(uart, "DI:OK\r\n", 7);  // Already initialized
         return gStat;
     }
 
     // Only open if not already open
     if (gSd == NULL) {
+        UART_write(uart, "DI:OPEN\r\n", 9);  // Opening SD
         gSd = SD_open(Board_SD0, NULL);
         if (gSd == NULL) {
+            UART_write(uart, "DI:FAIL1\r\n", 10);  // SD_open failed
             gStat = STA_NOINIT;
             return gStat;
         }
+        UART_write(uart, "DI:OPENED\r\n", 11);  // SD opened
     }
 
     // Only initialize if status says we need to
     if (gStat & STA_NOINIT) {
+        UART_write(uart, "DI:INIT\r\n", 9);  // SD_initialize starting
         if (SD_initialize(gSd) != SD_STATUS_SUCCESS) {
+            UART_write(uart, "DI:FAIL2\r\n", 10);  // SD_initialize failed
             SD_close(gSd);
             gSd = NULL;
             gStat = STA_NOINIT;
             return gStat;
         }
+        UART_write(uart, "DI:INIT+\r\n", 10);  // SD_initialize success
     }
 
     gStat = 0;
+    UART_write(uart, "DI+\r\n", 5);  // Disk Initialize complete
     return gStat;
 }
 
