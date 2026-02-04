@@ -93,11 +93,8 @@ int da_load() {
     FRESULT fr;
     UINT    br;
 
-    // Simple test: just create log1.bin directly
-    build_filename(1);
-
-    // Create the new log file (same flags as original WL2 code)
-    fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+    // Test with literal string
+    fr = f_open(&g_logFile, "log1.bin", FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
     if (fr != FR_OK) {
         return DISK_FAILED_INIT;
     }
