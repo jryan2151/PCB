@@ -92,18 +92,21 @@ int da_load() {
 
     FRESULT fr;
     UINT    br;
-    FILINFO fno;
+    FIL     testFile;
     int     n;
 
-    // Find next available log number
+    // Find next available log number by trying to open each file
     for (n = 1; n <= 999; n++) {
         build_filename(n);
-        fr = f_stat(g_logFileName, &fno);
-        if (fr == FR_NO_FILE) {
+        fr = f_open(&testFile, g_logFileName, FA_READ | FA_OPEN_EXISTING);
+        if (fr == FR_NO_FILE || fr == FR_NO_PATH) {
             // File doesn't exist - use this number
             break;
         }
-        // File exists or other error - try next number
+        if (fr == FR_OK) {
+            // File exists - close it and try next
+            f_close(&testFile);
+        }
     }
 
     // Create the new log file
