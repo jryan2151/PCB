@@ -254,6 +254,9 @@ void Sensors_init(){
 
     UART_write(uart, "A\r\n", 3);  // Debug: Start
 
+    // Initialize GPIO first (needed for SD CS pin)
+    GPIO_init();
+
     // Initialize SPI and SD FIRST, before other peripherals that might interfere
     SPI_init();
     UART_write(uart, "B\r\n", 3);  // Debug: SPI_init done
