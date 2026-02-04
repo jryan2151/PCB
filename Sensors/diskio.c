@@ -54,21 +54,25 @@ DSTATUS disk_initialize(BYTE pdrv)
 
 DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 {
+    UART_write(uart, "DR\r\n", 4);  // Disk Read starting
     if (pdrv != 0 || (gStat & STA_NOINIT) || gSd == NULL) return RES_NOTRDY;
     if (count == 0) return RES_PARERR;
 
     int result = SD_read(gSd, buff, (int_fast32_t)sector, (uint_fast32_t)count);
+    UART_write(uart, "DR+\r\n", 5);  // Disk Read done
     return (result == SD_STATUS_SUCCESS) ? RES_OK : RES_ERROR;
 }
 
 #if FF_FS_READONLY == 0
 DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 {
+    UART_write(uart, "DW\r\n", 4);  // Disk Write starting
     if (pdrv != 0 || (gStat & STA_NOINIT) || gSd == NULL) return RES_NOTRDY;
     if (count == 0) return RES_PARERR;
 
-    return (SD_write(gSd, buff, (int_fast32_t)sector, (uint_fast32_t)count) == SD_STATUS_SUCCESS)
-           ? RES_OK : RES_ERROR;
+    int result = SD_write(gSd, buff, (int_fast32_t)sector, (uint_fast32_t)count);
+    UART_write(uart, "DW+\r\n", 5);  // Disk Write done
+    return (result == SD_STATUS_SUCCESS) ? RES_OK : RES_ERROR;
 }
 #endif
 
