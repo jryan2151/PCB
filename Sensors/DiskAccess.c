@@ -32,10 +32,8 @@ static char current_log_filename[32];
 int da_initialize() {
     FRESULT fr;
 
-    f_mount(NULL, "0:", 0);
-    Task_sleep(200);
-
-    fr = f_mount(&g_sFatFs, "0:", 0);  // Delayed mount
+    // Use mode 1 (immediate mount) like the working version
+    fr = f_mount(&g_sFatFs, "0:", 1);
 
     if (fr != FR_OK) {
         fs_mounted = 0;

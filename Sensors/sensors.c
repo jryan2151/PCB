@@ -254,20 +254,10 @@ void Sensors_init(){
 
     UART_write(uart, "A\r\n", 3);  // Debug: Start
 
-    // Initialize GPIO first (needed for SD CS pin)
-    GPIO_init();
-
-    // Initialize SPI and SD FIRST, before other peripherals that might interfere
-    SPI_init();
-    UART_write(uart, "B\r\n", 3);  // Debug: SPI_init done
-
-    SD_init();
-    Task_sleep(500);
-    UART_write(uart, "C\r\n", 3);  // Debug: SD_init done
-
-    // Initialize disk access
+    // Initialize disk access FIRST (like working version)
+    // SD_init() is called internally by disk_initialize()
     int result = da_initialize();
-    UART_write(uart, "D\r\n", 3);  // Debug: da_initialize done
+    UART_write(uart, "B\r\n", 3);  // Debug: da_initialize done
 
     if (result != DISK_SUCCESS) {
         DA_get_status(result, "Initialize Disk");

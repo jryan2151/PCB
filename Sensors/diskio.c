@@ -12,7 +12,6 @@ extern char* uartBuf;
 /* One logical drive: pdrv = 0 */
 static SD_Handle gSd = NULL;
 static DSTATUS   gStat = STA_NOINIT;
-static int       gInitFailed = 0;  // Flag to prevent repeated init attempts
 
 
 DSTATUS disk_status(BYTE pdrv)
@@ -26,52 +25,30 @@ DSTATUS disk_initialize(BYTE pdrv)
     UART_write(uart, "DI\r\n", 4);  // Disk Initialize starting
     if (pdrv != 0) return STA_NOINIT;
 
-    // If we already failed init, don't try again (prevents hang on repeated attempts)
-    if (gInitFailed) {
-        UART_write(uart, "DI:SKIP\r\n", 9);  // Skipping - already failed
-        return STA_NOINIT;
-    }
+    // Call SD_init internally (like the working version did)
+    UART_write(uart, "DI:SDINIT\r\n", 11);
+    SD_init();
 
-    // If already initialized, just return success
-    if (gSd != NULL && !(gStat & STA_NOINIT)) {
-        UART_write(uart, "DI:OK\r\n", 7);  // Already initialized
+    UART_write(uart, "DI:OPEN\r\n", 9);  // Opening SD
+    gSd = SD_open(Board_SD0, NULL);
+    if (gSd == NULL) {
+        UART_write(uart, "DI:FAIL1\r\n", 10);  // SD_open failed
+        gStat = STA_NOINIT;
         return gStat;
     }
+    UART_write(uart, "DI:OPENED\r\n", 11);  // SD opened
 
-    // Only open if not already open
-    if (gSd == NULL) {
-        UART_write(uart, "DI:OPEN\r\n", 9);  // Opening SD
-        gSd = SD_open(Board_SD0, NULL);
-        if (gSd == NULL) {
-            UART_write(uart, "DI:FAIL1\r\n", 10);  // SD_open failed
-            gInitFailed = 1;
-            gStat = STA_NOINIT;
-            return gStat;
-        }
-        UART_write(uart, "DI:OPENED\r\n", 11);  // SD opened
+    UART_write(uart, "DI:TRY\r\n", 8);
+    if (SD_initialize(gSd) != SD_STATUS_SUCCESS) {
+        UART_write(uart, "DI:FAIL2\r\n", 10);  // SD_initialize failed
+        SD_close(gSd);
+        gSd = NULL;
+        gStat = STA_NOINIT;
+        return gStat;
     }
+    UART_write(uart, "DI:RET\r\n", 8);
 
-    // Only initialize if status says we need to
-    if (gStat & STA_NOINIT) {
-        UART_write(uart, "DI:INIT\r\n", 9);  // SD_initialize starting
-
-        // Try SD_initialize - just once, no retries (retries cause state corruption)
-        UART_write(uart, "DI:TRY\r\n", 8);
-        int initResult = SD_initialize(gSd);
-        UART_write(uart, "DI:RET\r\n", 8);
-
-        if (initResult != SD_STATUS_SUCCESS) {
-            UART_write(uart, "DI:FAIL2\r\n", 10);  // SD_initialize failed
-            SD_close(gSd);
-            gSd = NULL;
-            gInitFailed = 1;  // Mark as failed to prevent repeated attempts
-            gStat = STA_NOINIT;
-            return gStat;
-        }
-        UART_write(uart, "DI:INIT+\r\n", 10);  // SD_initialize success
-    }
-
-    gStat = 0;
+    gStat &= (DSTATUS)~STA_NOINIT;
     UART_write(uart, "DI+\r\n", 5);  // Disk Initialize complete
     return gStat;
 }
