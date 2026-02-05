@@ -275,8 +275,8 @@ void Sensors_init(){
     muxPinReset(muxmod);
 
     DA_get_status(da_load(), "Loading Disk"); // BLUETOOTH
-    // Print debug info
-    System_sprintf(uartBuf, "SD Debug: %s (err=%d, file=%d)\n", da_get_debug_msg(), da_get_last_error(), da_get_last_file_num());
+    // Print debug: err=X file=Y
+    System_sprintf(uartBuf, "e%d f%d\n", da_get_last_error(), da_get_last_file_num());
     UART_write(uart, uartBuf, strlen(uartBuf));
     startposition = da_get_read_pos();
 
