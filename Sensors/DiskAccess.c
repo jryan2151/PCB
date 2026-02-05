@@ -98,15 +98,10 @@ int da_load() {
     // FA_CREATE_NEW fails if file already exists
     for (n = 1; n <= 999; n++) {
         build_filename(n);
-        // Try to create with just FA_CREATE_NEW to test if file exists
-        fr = f_open(&g_logFile, g_logFileName, FA_CREATE_NEW | FA_WRITE);
+        fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_NEW);
         if (fr == FR_OK) {
-            // Successfully created - close and reopen with full access
-            f_close(&g_logFile);
-            fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_EXISTING);
-            if (fr == FR_OK) {
-                break;  // Success
-            }
+            // Successfully created new file - keep it open and use it
+            break;
         }
         // File exists (FR_EXIST) or other error - try next number
     }
