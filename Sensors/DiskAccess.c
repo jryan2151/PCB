@@ -103,7 +103,14 @@ int da_load() {
             // Successfully created new file - keep it open and use it
             break;
         }
-        // File exists (FR_EXIST) or other error - try next number
+        if (fr != FR_EXIST) {
+            // Some error other than "file exists" - try FA_OPEN_ALWAYS as fallback
+            fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+            if (fr == FR_OK) {
+                break;
+            }
+        }
+        // FR_EXIST means file exists, try next number
     }
 
     if (fr != FR_OK) {
