@@ -62,4 +62,9 @@ int da_commit();
 // TODO: delete this function. Only adding it for debugging purposes. This is a dangerous function
 char* da_get_transaction_buffer();
 
+// Debug functions
+const char* da_get_debug_msg();
+int da_get_last_error();
+int da_get_last_file_num();
+
 #endif

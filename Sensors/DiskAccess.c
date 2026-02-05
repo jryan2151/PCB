@@ -25,6 +25,23 @@ static unsigned long soft_read_pos;
 
 uint32_t cur_sector_num = 0U;
 
+// Debug info
+static char g_debugMsg[64];
+static int g_lastError = 0;
+static int g_lastFileNum = 0;
+
+const char* da_get_debug_msg() {
+    return g_debugMsg;
+}
+
+int da_get_last_error() {
+    return g_lastError;
+}
+
+int da_get_last_file_num() {
+    return g_lastFileNum;
+}
+
 // Build filename: "log1.bin", "log2.bin", ... "log999.bin"
 static void build_filename(int n) {
     g_logFileName[0] = 'l';
@@ -88,7 +105,11 @@ int da_initialize() {
 }
 
 int da_load() {
-    if (!fs_mounted) return DISK_FAILED_INIT;
+    if (!fs_mounted) {
+        System_sprintf(g_debugMsg, "not mounted");
+        g_lastError = -1;
+        return DISK_FAILED_INIT;
+    }
 
     FRESULT fr;
     UINT    br;
@@ -99,14 +120,20 @@ int da_load() {
     for (n = 1; n <= 999; n++) {
         build_filename(n);
         fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_CREATE_NEW);
+        g_lastFileNum = n;
+        g_lastError = (int)fr;
         if (fr == FR_OK) {
             // Successfully created new file - keep it open and use it
+            System_sprintf(g_debugMsg, "created log%d.bin", n);
             break;
         }
         if (fr != FR_EXIST) {
             // Some error other than "file exists" - try FA_OPEN_ALWAYS as fallback
+            System_sprintf(g_debugMsg, "log%d err%d, trying fallback", n, (int)fr);
             fr = f_open(&g_logFile, g_logFileName, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+            g_lastError = (int)fr;
             if (fr == FR_OK) {
+                System_sprintf(g_debugMsg, "fallback log%d.bin ok", n);
                 break;
             }
         }
@@ -114,6 +141,7 @@ int da_load() {
     }
 
     if (fr != FR_OK) {
+        System_sprintf(g_debugMsg, "loop fail n=%d err=%d", n, (int)fr);
         return DISK_FAILED_INIT;
     }
 
@@ -126,11 +154,19 @@ int da_load() {
     DWORD newSize = (DWORD)(num_sectors + 1) * sector_size;
 
     fr = f_lseek(&g_logFile, newSize - 1);
-    if (fr != FR_OK) return DISK_FAILED_INIT;
+    if (fr != FR_OK) {
+        System_sprintf(g_debugMsg, "seek fail err=%d", (int)fr);
+        g_lastError = (int)fr;
+        return DISK_FAILED_INIT;
+    }
 
     BYTE zero = 0;
     fr = f_write(&g_logFile, &zero, 1, &br);
-    if (fr != FR_OK || br != 1) return DISK_FAILED_INIT;
+    if (fr != FR_OK || br != 1) {
+        System_sprintf(g_debugMsg, "write1 fail err=%d br=%d", (int)fr, br);
+        g_lastError = (int)fr;
+        return DISK_FAILED_INIT;
+    }
 
     write_pos = 0;
     read_pos  = 0;
@@ -139,9 +175,14 @@ int da_load() {
     f_lseek(&g_logFile, 0);
     System_sprintf(txn_buffer, "%ld:%ld", write_pos, read_pos);
     fr = f_write(&g_logFile, txn_buffer, sector_size, &br);
-    if (fr != FR_OK || br != sector_size) return DISK_FAILED_WRITE;
+    if (fr != FR_OK || br != sector_size) {
+        System_sprintf(g_debugMsg, "write2 fail err=%d br=%d", (int)fr, br);
+        g_lastError = (int)fr;
+        return DISK_FAILED_WRITE;
+    }
 
     f_sync(&g_logFile);
+    System_sprintf(g_debugMsg, "success log%d.bin", g_lastFileNum);
 
     cur_sector_num = -1;
     dirty = 0;
