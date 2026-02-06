@@ -1,10 +1,7 @@
 #ifndef DISKACCESS_H
 #define DISKACCESS_H
 
-#include <ti/drivers/SD.h>
 #include <xdc/runtime/System.h>
-#include "Board.h"
-#include <semaphore.h>
 
 #define DISK_SUCCESS         1
 #define DISK_NULL_HANDLE    -1
