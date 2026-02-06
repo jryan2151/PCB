@@ -32,7 +32,7 @@ uint8_t getStatus() {
 static void Storage_taskFxn(UArg a0, UArg a1) {
     Storage_init();
 
-    while (true) {
+    while (1) {
         Semaphore_pend(storage_buffer_mailbox, BIOS_WAIT_FOREVER);
         storage_status = 0;
 
