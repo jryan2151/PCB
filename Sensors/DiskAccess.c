@@ -3,10 +3,10 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "ff.h"
-#include "diskio.h"
+#include <ti/drivers/SDFatFS.h>
+#include <third_party/fatfs/ff.h>
 
-static FATFS g_sFatFs;
+static SDFatFS_Handle sdfatfsHandle = NULL;
 static FIL   g_logFile;
 static int   fs_mounted = 0;
 
@@ -57,10 +57,9 @@ static void build_filename(int n) {
 }
 
 int da_initialize() {
-    FRESULT fr;
-
-    fr = f_mount(&g_sFatFs, "0:", 1);
-    if (fr != FR_OK) {
+    SDFatFS_init();
+    sdfatfsHandle = SDFatFS_open(0, 0);
+    if (sdfatfsHandle == NULL) {
         fs_mounted = 0;
         return DISK_FAILED_INIT;
     }
@@ -118,7 +117,8 @@ int da_close() {
     if (fs_mounted) {
         f_sync(&g_logFile);
         f_close(&g_logFile);
-        f_mount(NULL, "0:", 1);
+        SDFatFS_close(sdfatfsHandle);
+        sdfatfsHandle = NULL;
         fs_mounted = 0;
     }
 
