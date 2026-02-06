@@ -428,10 +428,10 @@ void load_serializer(uint16_t read_value) {
     serializer_addImpedance(read_value);
 
     if (serializer_isFull() && Semaphore_pend(storage_buffer_mutex, BIOS_NO_WAIT)) {
-        // Reset length ONLY while holding the mutex
-        storage_buffer_length = 0;
-
-        storage_buffer_length = serializer_serializeReadable(storage_buffer);
+        static uint32_t test_line_num = 0;
+        storage_buffer_length = System_sprintf(storage_buffer,
+            "%u,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999,49.9999\n",
+            test_line_num++);
 
         if (print_uart) {
             print(storage_buffer);
