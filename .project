@@ -43,14 +43,34 @@
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
 		<link>
+			<name>diskio.c</name>
+			<type>1</type>
+			<locationURI>COM_TI_SIMPLELINK_CC2640R2_SDK_INSTALL_DIR/source/third_party/fatfs/diskio.c</locationURI>
+		</link>
+		<link>
 			<name>ff.c</name>
 			<type>1</type>
 			<locationURI>COM_TI_SIMPLELINK_CC2640R2_SDK_INSTALL_DIR/source/third_party/fatfs/ff.c</locationURI>
 		</link>
 		<link>
+			<name>ffcio.c</name>
+			<type>1</type>
+			<locationURI>COM_TI_SIMPLELINK_CC2640R2_SDK_INSTALL_DIR/source/third_party/fatfs/ffcio.c</locationURI>
+		</link>
+		<link>
+			<name>ffsystem.c</name>
+			<type>1</type>
+			<locationURI>COM_TI_SIMPLELINK_CC2640R2_SDK_INSTALL_DIR/source/third_party/fatfs/ffsystem.c</locationURI>
+		</link>
+		<link>
 			<name>ffunicode.c</name>
 			<type>1</type>
 			<locationURI>COM_TI_SIMPLELINK_CC2640R2_SDK_INSTALL_DIR/source/third_party/fatfs/ffunicode.c</locationURI>
+		</link>
+		<link>
+			<name>ramdisk.c</name>
+			<type>1</type>
+			<locationURI>COM_TI_SIMPLELINK_CC2640R2_SDK_INSTALL_DIR/source/third_party/fatfs/ramdisk.c</locationURI>
 		</link>
 		<link>
 			<name>Drivers/ECC</name>
