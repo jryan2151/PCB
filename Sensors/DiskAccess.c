@@ -31,6 +31,27 @@ void da_set_uart(UART_Handle h)
     g_daUart = h;
 }
 
+static const char* fresult_str(FRESULT fr)
+{
+    switch (fr) {
+    case FR_OK:                  return "OK";
+    case FR_DISK_ERR:            return "DISK_ERR";
+    case FR_INT_ERR:             return "INT_ERR";
+    case FR_NOT_READY:           return "NOT_READY";
+    case FR_NO_FILE:             return "NO_FILE";
+    case FR_NO_PATH:             return "NO_PATH";
+    case FR_INVALID_NAME:        return "INVALID_NAME";
+    case FR_DENIED:              return "DENIED";
+    case FR_EXIST:               return "EXIST";
+    case FR_INVALID_OBJECT:      return "INVALID_OBJECT";
+    case FR_WRITE_PROTECTED:     return "WRITE_PROTECTED";
+    case FR_INVALID_DRIVE:       return "INVALID_DRIVE";
+    case FR_NOT_ENABLED:         return "NOT_ENABLED";
+    case FR_NO_FILESYSTEM:       return "NO_FILESYSTEM";
+    default:                     return "UNKNOWN";
+    }
+}
+
 static void da_uart_log(const char *fmt, ...)
 {
     if (!g_daUart) return;
@@ -131,8 +152,11 @@ int da_initialize(void)
 int da_load(void)
 {
 
+    set_dbg("da_load: enter");
+
     if (!fs_mounted) {
         g_lastError = -1;
+        set_dbg("da_load: NOT MOUNTED");
         da_uart_log("da_load: NOT MOUNTED\r\n");
         return DISK_FAILED_INIT;
     }
@@ -146,14 +170,16 @@ int da_load(void)
         build_filename(n);
         logFilePath = build_filepath();
 
+        set_dbg("da_load: trying CREATE_NEW %s", logFilePath);
         da_uart_log("da_load: f_open CREATE_NEW %s\r\n", logFilePath);
         fr = f_open(&g_logFile, logFilePath, FA_WRITE | FA_READ | FA_CREATE_NEW);
-        da_uart_log("da_load: f_open CREATE_NEW returned fr=%d\r\n", (int)fr);
+        da_uart_log("da_load: f_open CREATE_NEW returned fr=%d (%s)\r\n", (int)fr, fresult_str(fr));
 
         g_lastFileNum = n;
         g_lastError   = (int)fr;
 
         if (fr == FR_OK) {
+            set_dbg("da_load: created %s", g_logFileName);
             da_uart_log("da_load: created %s\r\n", g_logFileName);
             break;
         }
@@ -162,20 +188,26 @@ int da_load(void)
             continue; // try next number
         }
 
+        set_dbg("da_load: CREATE_NEW %s failed fr=%d(%s), trying OPEN_ALWAYS",
+                logFilePath, (int)fr, fresult_str(fr));
         da_uart_log("da_load: f_open OPEN_ALWAYS %s\r\n", logFilePath);
         fr = f_open(&g_logFile, logFilePath, FA_WRITE | FA_READ | FA_OPEN_ALWAYS);
-        da_uart_log("da_load: f_open OPEN_ALWAYS returned fr=%d\r\n", (int)fr);
+        da_uart_log("da_load: f_open OPEN_ALWAYS returned fr=%d (%s)\r\n", (int)fr, fresult_str(fr));
 
         g_lastError = (int)fr;
 
         if (fr == FR_OK) {
+            set_dbg("da_load: opened %s via OPEN_ALWAYS", g_logFileName);
             da_uart_log("da_load: opened %s\r\n", g_logFileName);
             break;
         }
     }
 
     if (fr != FR_OK) {
-        da_uart_log("da_load: FAIL final fr=%d last=%s\r\n", (int)fr, g_logFileName);
+        set_dbg("da_load: FAIL fr=%d(%s) file=%s n=%d",
+                (int)fr, fresult_str(fr), g_logFileName, n);
+        da_uart_log("da_load: FAIL final fr=%d (%s) last=%s\r\n",
+                    (int)fr, fresult_str(fr), g_logFileName);
         return DISK_FAILED_INIT;
     }
 
@@ -185,7 +217,9 @@ int da_load(void)
 
     if (fr != FR_OK) {
         g_lastError = (int)fr;
-        da_uart_log("da_load: lseek FAIL\r\n");
+        set_dbg("da_load: lseek FAIL fr=%d(%s) file=%s",
+                (int)fr, fresult_str(fr), g_logFileName);
+        da_uart_log("da_load: lseek FAIL fr=%d (%s)\r\n", (int)fr, fresult_str(fr));
         return DISK_FAILED_INIT;
     }
 
@@ -193,6 +227,7 @@ int da_load(void)
     read_pos  = 0;
     soft_read_pos = 0;
 
+    set_dbg("da_load: OK file=%s write_pos=%lu", g_logFileName, (unsigned long)write_pos);
     da_uart_log("da_load: OK write_pos=%lu\r\n", (unsigned long)write_pos);
     return DISK_SUCCESS;
 }

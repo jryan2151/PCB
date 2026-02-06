@@ -263,7 +263,7 @@ void Sensors_init() {
     rc = da_initialize();
     int n = System_sprintf(uartBuf, "da_initialize rc=%d mounted=%d msg=%s\r\n",
                    rc, da_is_mounted(), da_get_debug_msg());
-//    UART_write(uart, uartBuf, n);
+    UART_write(uart, uartBuf, n);
 
     if (rc != DISK_SUCCESS) return;
 
