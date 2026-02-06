@@ -144,7 +144,30 @@ int da_initialize(void)
 
     fs_mounted = 1;
     g_lastError = 0;
-    set_dbg("da_initialize: OK handle!=NULL mounted=1");
+
+    // Force the deferred mount to actually talk to the SD card now.
+    // SDFatFS_open uses f_mount with opt=0 (lazy), so no real disk I/O
+    // happens until the first FatFS file operation.  Opening the root
+    // directory is the lightest operation that triggers the mount.
+    DIR dir;
+    set_dbg("da_initialize: verifying SD access (f_opendir)");
+    da_uart_log("da_initialize: f_opendir 0:\r\n");
+    FRESULT fr = f_opendir(&dir, "0:");
+    da_uart_log("da_initialize: f_opendir returned fr=%d (%s)\r\n",
+                (int)fr, fresult_str(fr));
+
+    if (fr != FR_OK) {
+        fs_mounted = 0;
+        g_lastError = (int)fr;
+        set_dbg("da_initialize: SD verify FAILED fr=%d(%s)",
+                (int)fr, fresult_str(fr));
+        SDFatFS_close(sdfatfsHandle);
+        sdfatfsHandle = NULL;
+        return DISK_FAILED_INIT;
+    }
+
+    f_closedir(&dir);
+    set_dbg("da_initialize: OK mounted=1 SD verified");
 
     return DISK_SUCCESS;
 }
