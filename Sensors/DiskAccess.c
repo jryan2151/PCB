@@ -2,9 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #include <ti/drivers/SDFatFS.h>
 #include <third_party/fatfs/ff.h>
+#include <ti/drivers/UART.h>
 
 static SDFatFS_Handle sdfatfsHandle = NULL;
 static FIL   g_logFile;
@@ -19,9 +21,46 @@ static unsigned long soft_read_pos;
 // Debug info
 static int g_lastError = 0;
 static int g_lastFileNum = 0;
+static char g_debugMsg[160];
+static UART_Handle g_daUart = NULL;
+static char g_dbg[128];
 
-const char* da_get_debug_msg() {
-    return "";
+void da_set_uart(UART_Handle h)
+{
+    g_daUart = h;
+}
+
+static void da_uart_log(const char *fmt, ...)
+{
+    if (!g_daUart) return;
+
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(g_dbg, sizeof(g_dbg), fmt, ap);
+    va_end(ap);
+
+    if (n < 0) return;
+    if (n > (int)sizeof(g_dbg)) n = sizeof(g_dbg);
+
+    UART_write(g_daUart, g_dbg, n);
+}
+
+static void set_dbg(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(g_debugMsg, sizeof(g_debugMsg), fmt, ap);
+    va_end(ap);
+}
+
+int da_is_mounted(void)
+{
+    return fs_mounted;
+}
+
+const char* da_get_debug_msg(void)
+{
+    return g_debugMsg;
 }
 
 int da_get_last_error() {
@@ -56,57 +95,96 @@ static void build_filename(int n) {
     g_logFileName[pos] = '\0';
 }
 
-int da_initialize() {
+int da_initialize(void)
+{
+    set_dbg("da_initialize: start");
+
     SDFatFS_init();
+    set_dbg("da_initialize: after SDFatFS_init");
+
     sdfatfsHandle = SDFatFS_open(0, 0);
+
     if (sdfatfsHandle == NULL) {
         fs_mounted = 0;
+        g_lastError = DISK_NULL_HANDLE;
+        set_dbg("da_initialize: SDFatFS_open FAILED handle=NULL");
         return DISK_FAILED_INIT;
     }
+
     fs_mounted = 1;
+    g_lastError = 0;
+    set_dbg("da_initialize: OK handle!=NULL mounted=1");
 
     return DISK_SUCCESS;
 }
 
-int da_load() {
+int da_load(void)
+{
+
     if (!fs_mounted) {
         g_lastError = -1;
+        da_uart_log("da_load: NOT MOUNTED\r\n");
         return DISK_FAILED_INIT;
     }
 
-    FRESULT fr;
-    int     n;
+    FRESULT fr = FR_OK;
+    int n = 0;
 
-    // Find next available log number
     for (n = 1; n <= 999; n++) {
         build_filename(n);
+
+        da_uart_log("da_load: f_open CREATE_NEW %s\r\n", g_logFileName);
         fr = f_open(&g_logFile, g_logFileName, FA_WRITE | FA_READ | FA_CREATE_NEW);
+        da_uart_log("da_load: f_open CREATE_NEW returned fr=%d\r\n", (int)fr);
+
         g_lastFileNum = n;
-        g_lastError = (int)fr;
+        g_lastError   = (int)fr;
+
         if (fr == FR_OK) {
+            da_uart_log("da_load: created %s\r\n", g_logFileName);
             break;
         }
-        if (fr != FR_EXIST) {
-            fr = f_open(&g_logFile, g_logFileName, FA_WRITE | FA_READ | FA_OPEN_ALWAYS);
-            g_lastError = (int)fr;
-            if (fr == FR_OK) {
-                break;
-            }
+
+        if (fr == FR_EXIST) {
+            continue; // try next number
+        }
+
+        da_uart_log("da_load: f_open OPEN_ALWAYS %s\r\n", g_logFileName);
+        fr = f_open(&g_logFile, g_logFileName, FA_WRITE | FA_READ | FA_OPEN_ALWAYS);
+        da_uart_log("da_load: f_open OPEN_ALWAYS returned fr=%d\r\n", (int)fr);
+
+        g_lastError = (int)fr;
+
+        if (fr == FR_OK) {
+            da_uart_log("da_load: opened %s\r\n", g_logFileName);
+            break;
         }
     }
 
     if (fr != FR_OK) {
+        da_uart_log("da_load: FAIL final fr=%d last=%s\r\n", (int)fr, g_logFileName);
         return DISK_FAILED_INIT;
     }
 
-    // Seek to end for appending
-    f_lseek(&g_logFile, f_size(&g_logFile));
+    da_uart_log("da_load: seeking end\r\n");
+    fr = f_lseek(&g_logFile, f_size(&g_logFile));
+    da_uart_log("da_load: lseek returned fr=%d\r\n", (int)fr);
+
+    if (fr != FR_OK) {
+        g_lastError = (int)fr;
+        da_uart_log("da_load: lseek FAIL\r\n");
+        return DISK_FAILED_INIT;
+    }
+
     write_pos = f_tell(&g_logFile);
     read_pos  = 0;
     soft_read_pos = 0;
 
+    da_uart_log("da_load: OK write_pos=%lu\r\n", (unsigned long)write_pos);
     return DISK_SUCCESS;
 }
+
+
 
 int da_clear() {
     read_pos = 0;

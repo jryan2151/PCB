@@ -2,6 +2,7 @@
 #define DISKACCESS_H
 
 #include <xdc/runtime/System.h>
+#include <ti/drivers/UART.h>
 
 #define DISK_SUCCESS         1
 #define DISK_NULL_HANDLE    -1
@@ -46,8 +47,10 @@ int da_soft_commit();
 int da_soft_rollback();
 
 // Debug
-const char* da_get_debug_msg();
+const char* da_get_debug_msg(void);
 int da_get_last_error();
 int da_get_last_file_num();
+int da_is_mounted(void);
+void da_set_uart(UART_Handle h);
 
 #endif

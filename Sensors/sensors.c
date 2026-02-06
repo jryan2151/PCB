@@ -238,55 +238,101 @@ void uartCallback(UART_Handle handle, void *buf, size_t count){
 
 //============================================== MAIN THREAD ==============================================
 // this function is run immediately when the PCB is programmed. Any time you reset the PCB it will run again.
-void Sensors_init(){
+int loops = 0;
 
-    uartBuf = (char*) malloc(256 * sizeof(char));\
+void Sensors_init() {
 
-    // UART_setup();
-    // check_pin_6_and_7();
+    uartBuf = (char*) malloc(256 * sizeof(char));
 
-    // Call Driver Init Functions
-    da_initialize();
-    ADC_setup();
-    GPIO_setup();
-    I2C_setup();
     UART_setup();
-    DAC_setup();
-    MUX_setup();
+    da_set_uart(uart);
+    System_sprintf(uartBuf, "We are cooking %i", loops);
+
+    const char *csvLine = "0,49.9999,49.9999,49.9999,49.9999\n";
+    uint8_t waitCount = 0;
 
     Storage_createTask();
 
-    // Initialize Variables
-    Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
-
-    Signal.ampAC = lastAmp; // High signal.
-    Signal.ampDC = 0; // reference signal.  Needs to be low so we can measure against it.
-    txBuffer1[0] = Signal.ampAC >> 8; //high byte
-    txBuffer1[1] = Signal.ampAC; //low byte
-    txBuffer2[0] = Signal.ampDC >> 8; //high byte.
-    txBuffer2[1] = Signal.ampDC; //low byte.
-    txBuffer4[0] = ADC_REG;  // Send register address to read from
-
-    I2C_transfer(I2Chandle, &i2cTrans1); // communication for the DAC that is currently ON.
-    I2C_transfer(I2Chandle, &i2cTrans2); // communication for the DAC that is currently OFF. Delete when confirmed we don't need it.
-
-    // set the mux configuration to array pin 0 which is really sensor 10 on the PCB
-    muxmod = 0;
-    muxPinReset(muxmod);
-
-    int loadResult = da_load();
-    System_sprintf(uartBuf, "SD:%d e%d f%d\n", loadResult, da_get_last_error(), da_get_last_file_num());
-    UART_write(uart, uartBuf, strlen(uartBuf));
-    startposition = da_get_read_pos();
-
-    if (print_uart){
-        Sensors_start_timers();
+    while ((storage_buffer_mutex == NULL || storage_buffer_mailbox == NULL) && (waitCount < 10)) {
+        Task_sleep(1);
+        waitCount++;
     }
 
-    if (FOURTYEIGHT) {
-        Sensors_start_timers();
+    int rc;
+
+    rc = da_initialize();
+    int n = System_sprintf(uartBuf, "da_initialize rc=%d mounted=%d msg=%s\r\n",
+                   rc, da_is_mounted(), da_get_debug_msg());
+//    UART_write(uart, uartBuf, n);
+
+    if (rc != DISK_SUCCESS) return;
+
+//    System_sprintf(uartBuf, "We are cooking %i", loops);
+//    UART_write(uart, uartBuf, strlen(uartBuf));
+
+    rc = da_load();
+    int m = System_sprintf(uartBuf, "da_load rc=%d err=%d file=%d msg=%s\r\n",
+                   rc, da_get_last_error(), da_get_last_file_num(), da_get_debug_msg());
+    UART_write(uart, uartBuf, m);
+
+    if (rc != DISK_SUCCESS) return;
+
+//    UART_write(uart, uartBuf, strlen(uartBuf));
+
+    if ((storage_buffer_mutex != NULL) && Semaphore_pend(storage_buffer_mutex, BIOS_WAIT_FOREVER)) {
+        storage_buffer_length = System_sprintf(storage_buffer, "%s", csvLine);
+        Semaphore_post(storage_buffer_mailbox);
     }
 }
+//void Sensors_init(){
+//
+//    uartBuf = (char*) malloc(256 * sizeof(char));\
+//
+//    // UART_setup();
+//    // check_pin_6_and_7();
+//
+//    // Call Driver Init Functions
+//    da_initialize();
+//    ADC_setup();
+//    GPIO_setup();
+//    I2C_setup();
+//    UART_setup();
+//    DAC_setup();
+//    MUX_setup();
+//
+//    Storage_createTask();
+//
+//    // Initialize Variables
+//    Signal.ampAC = lastAmp; //Set the Signal to what it is initialized to in the array declared on line 138 (lastAmp[])
+//
+//    Signal.ampAC = lastAmp; // High signal.
+//    Signal.ampDC = 0; // reference signal.  Needs to be low so we can measure against it.
+//    txBuffer1[0] = Signal.ampAC >> 8; //high byte
+//    txBuffer1[1] = Signal.ampAC; //low byte
+//    txBuffer2[0] = Signal.ampDC >> 8; //high byte.
+//    txBuffer2[1] = Signal.ampDC; //low byte.
+//    txBuffer4[0] = ADC_REG;  // Send register address to read from
+//
+//    I2C_transfer(I2Chandle, &i2cTrans1); // communication for the DAC that is currently ON.
+//    I2C_transfer(I2Chandle, &i2cTrans2); // communication for the DAC that is currently OFF. Delete when confirmed we don't need it.
+//
+//    // set the mux configuration to array pin 0 which is really sensor 10 on the PCB
+//    muxmod = 0;
+//    muxPinReset(muxmod);
+//
+//    int loadResult = da_load();
+//    System_sprintf(uartBuf, "SD:%d e%d f%d\n", loadResult, da_get_last_error(), da_get_last_file_num());
+//    UART_write(uart, uartBuf, strlen(uartBuf));
+//    startposition = da_get_read_pos();
+//
+//    if (print_uart){
+//        Sensors_start_timers();
+//    }
+//
+//    if (FOURTYEIGHT) {
+//        Sensors_start_timers();
+//    }
+//}
 
 
 // ============================================== Configuration Functions ==============================================
@@ -389,7 +435,8 @@ void UART_setup(){
     UART_init();
     UART_Params_init(&uartParams);
     uartParams.writeDataMode = UART_DATA_BINARY;
-    uartParams.writeMode = UART_MODE_CALLBACK;
+    uartParams.writeMode = UART_MODE_BLOCKING;
+    uartParams.writeTimeout = BIOS_WAIT_FOREVER;
     uartParams.writeCallback = uartCallback;
     uartParams.baudRate = 460800; // Baud Rate.
     uart = UART_open(Board_UART0, &uartParams);
