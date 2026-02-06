@@ -13,6 +13,7 @@ static FIL   g_logFile;
 static int   fs_mounted = 0;
 
 static char  g_logFileName[13];  // "logNNN.csv" + null
+static char  g_logFilePath[16];  // "0:logNNN.csv" + null
 
 static unsigned long write_pos;
 static unsigned long read_pos;
@@ -95,6 +96,15 @@ static void build_filename(int n) {
     g_logFileName[pos] = '\0';
 }
 
+static const char* build_filepath(void)
+{
+    g_logFilePath[0] = '0';
+    g_logFilePath[1] = ':';
+    strncpy(&g_logFilePath[2], g_logFileName, sizeof(g_logFilePath) - 3);
+    g_logFilePath[sizeof(g_logFilePath) - 1] = '\0';
+    return g_logFilePath;
+}
+
 int da_initialize(void)
 {
     set_dbg("da_initialize: start");
@@ -131,10 +141,13 @@ int da_load(void)
     int n = 0;
 
     for (n = 1; n <= 999; n++) {
-        build_filename(n);
+        const char *logFilePath;
 
-        da_uart_log("da_load: f_open CREATE_NEW %s\r\n", g_logFileName);
-        fr = f_open(&g_logFile, g_logFileName, FA_WRITE | FA_READ | FA_CREATE_NEW);
+        build_filename(n);
+        logFilePath = build_filepath();
+
+        da_uart_log("da_load: f_open CREATE_NEW %s\r\n", logFilePath);
+        fr = f_open(&g_logFile, logFilePath, FA_WRITE | FA_READ | FA_CREATE_NEW);
         da_uart_log("da_load: f_open CREATE_NEW returned fr=%d\r\n", (int)fr);
 
         g_lastFileNum = n;
@@ -149,8 +162,8 @@ int da_load(void)
             continue; // try next number
         }
 
-        da_uart_log("da_load: f_open OPEN_ALWAYS %s\r\n", g_logFileName);
-        fr = f_open(&g_logFile, g_logFileName, FA_WRITE | FA_READ | FA_OPEN_ALWAYS);
+        da_uart_log("da_load: f_open OPEN_ALWAYS %s\r\n", logFilePath);
+        fr = f_open(&g_logFile, logFilePath, FA_WRITE | FA_READ | FA_OPEN_ALWAYS);
         da_uart_log("da_load: f_open OPEN_ALWAYS returned fr=%d\r\n", (int)fr);
 
         g_lastError = (int)fr;
