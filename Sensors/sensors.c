@@ -431,11 +431,10 @@ void load_serializer(uint16_t read_value) {
         // Reset length ONLY while holding the mutex
         storage_buffer_length = 0;
 
-        storage_buffer_length = serializer_serialize(storage_buffer);
+        storage_buffer_length = serializer_serializeReadable(storage_buffer);
 
         if (print_uart) {
-            serializer_serializeReadable(uartBuf);
-            print(uartBuf);
+            print(storage_buffer);
         }
 
         // Signal the storage task; DO NOT release mutex here.

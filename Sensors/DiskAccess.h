@@ -5,13 +5,6 @@
 #include <xdc/runtime/System.h>
 #include "Board.h"
 #include <semaphore.h>
-//#include "Application/simple_peripheral.h"
-
-
-
-// comment out these lines below when putting on board
-//#include "SDRaw.h"
-// =======================================================
 
 #define DISK_SUCCESS         1
 #define DISK_NULL_HANDLE    -1
@@ -20,49 +13,42 @@
 #define DISK_FAILED_WRITE   -4
 #define DISK_LOCKED         -5
 
-extern uint32_t cur_sector_num;
-
-extern sem_t storage_mutex;
-
-// struct SDCard card;
-
-// initializes sd card
+// Initialize (mount filesystem)
 int da_initialize();
 
+// Open next available log file (logN.csv)
+int da_load();
+
+// Close file and unmount
+int da_close();
+
+// Append a line of text to the log file
+int da_append(const char* buffer, int size);
+
+// Read bytes from current read position (for BLE readback)
+int da_read(char* buffer, int size);
+
+// Flush file to disk
+int da_commit();
+
+// Reset read position to 0
+int da_clear();
+
+// Getters
+int da_get_data_size();
 int da_get_read_pos();
 int da_get_write_pos();
 int da_get_sector_size();
 unsigned int da_get_num_sectors();
 
-
-//free txn buffer
-int da_destructor();
-
-int da_clear();
-
-// load SD card info into SD struct
-int da_load();
-int da_close();
-
-// writes to sd card. We only append.
-int da_write(char* buffer, int size);
+// No-op: append-only writes
 void da_set_write_pos(int position);
 
-// reads from position. Position should be initialized to second sector.
-// first sector reserved to track file size
-int da_read(char* buffer, int size);
-int da_get_cur_sector();
-int da_get_sector(int sector);
-int da_get_data_size();
-
+// Soft commit/rollback for BLE chunked reads
 int da_soft_commit();
 int da_soft_rollback();
-int da_commit();
 
-// TODO: delete this function. Only adding it for debugging purposes. This is a dangerous function
-char* da_get_transaction_buffer();
-
-// Debug functions
+// Debug
 const char* da_get_debug_msg();
 int da_get_last_error();
 int da_get_last_file_num();

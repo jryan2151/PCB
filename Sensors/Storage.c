@@ -6,11 +6,11 @@
 #define STORAGE_TASK_PRIORITY       1
 
 #ifndef STORAGE_TASK_STACK_SIZE
-#define STORAGE_TASK_STACK_SIZE     448//644
+#define STORAGE_TASK_STACK_SIZE     448
 #endif
 
 #ifndef STORAGE_BUF_SIZE
-#define STORAGE_BUF_SIZE            128
+#define STORAGE_BUF_SIZE            200
 #endif
 
 Semaphore_Struct storage_buffer_mailbox_struct;
@@ -36,8 +36,7 @@ static void Storage_taskFxn(UArg a0, UArg a1) {
         Semaphore_pend(storage_buffer_mailbox, BIOS_WAIT_FOREVER);
         storage_status = 0;
 
-        if (da_write(storage_buffer, storage_buffer_length) != DISK_SUCCESS) storage_status = 1;
-        if (da_commit() != DISK_SUCCESS) storage_status = 1;
+        if (da_append(storage_buffer, storage_buffer_length) != DISK_SUCCESS) storage_status = 1;
         Semaphore_post(storage_buffer_mutex);
     }
 }
@@ -71,8 +70,4 @@ void Storage_createTask(void) {
   taskParams.priority = STORAGE_TASK_PRIORITY;
 
   Task_construct(&storageTask, Storage_taskFxn, &taskParams, NULL);
-}
-
-char* Storage_get_transaction_buffer() {
-    return da_get_transaction_buffer();
 }
