@@ -251,7 +251,8 @@ void Sensors_init() {
     const char *csvLine = "0,49.9999,49.9999,49.9999,49.9999\n";
     uint8_t waitCount = 0;
 
-    Storage_createTask();
+    // Storage task is already created in main.c — do NOT create it again here.
+    // Double Task_construct on the same static struct corrupts the RTOS state.
 
     while ((storage_buffer_mutex == NULL || storage_buffer_mailbox == NULL) && (waitCount < 10)) {
         Task_sleep(1);
