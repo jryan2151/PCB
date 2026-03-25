@@ -248,22 +248,33 @@ void Sensors_init(){
     UART_Params_init(&uartParams);
     uartParams.writeDataMode = UART_DATA_BINARY;
     uartParams.writeMode = UART_MODE_BLOCKING;
-    uartParams.baudRate = 460800;
+    uartParams.baudRate = 115200;  /* DEBUG: reduced from 460800 to test UART bridge */
     uart = UART_open(Board_UART0, &uartParams);
 
     // Call other Driver Init Functions
+    /* DEBUG: LED pulse confirms Sensors_init reached UART open, regardless of UART */
+    GPIO_init();
+    GPIO_setConfig(Board_GPIO_LED0, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
+    GPIO_write(Board_GPIO_LED0, 1);
+    Task_sleep(200);
+    GPIO_write(Board_GPIO_LED0, 0);
+    UART_write(uart, "A\r\n", 3);  // Debug: before peripheral init
     ADC_setup();
     GPIO_setup();
     I2C_setup();
     DAC_setup();
     MUX_setup();
+    UART_write(uart, "B\r\n", 3);  // Debug: peripherals done
 
     // Initialize SD card BEFORE da_initialize
     SD_init();
+    UART_write(uart, "C\r\n", 3);  // Debug: SD_init done
     Task_sleep(500);
+    UART_write(uart, "D\r\n", 3);  // Debug: after SD settle delay
 
     // Initialize disk access
     int result = da_initialize();
+    UART_write(uart, "E\r\n", 3);  // Debug: da_initialize returned
 
     if (result != DISK_SUCCESS) {
         DA_get_status(result, "Initialize Disk");
@@ -298,9 +309,14 @@ void Sensors_init(){
     DA_get_status(result, "Loading Disk");
 
     if (result != DISK_SUCCESS) {
-        while(1) {
-            GPIO_toggle(Board_GPIO_LED1);
-            Task_sleep(100);
+        if (result == DISK_NO_SPACE) {
+            UART_write(uart, "SD_FULL\r\n", 9);
+            /* SD card full — continue running without SD logging */
+        } else {
+            while(1) {
+                GPIO_toggle(Board_GPIO_LED1);
+                Task_sleep(100);
+            }
         }
     }
 
@@ -461,25 +477,21 @@ void load_serializer(uint16_t read_value) {
     if (serializer_isFull()) {
         UART_write(uart, "SF\r\n", 4);  // Serializer Full
 
-        if (Semaphore_pend(storage_buffer_mutex, BIOS_NO_WAIT)) {
-            UART_write(uart, "MX\r\n", 4);  // Mutex acquired
+        // Serialise into a static buffer (not on ISR stack) then push
+        // into the ring buffer — no mutex, no blocking, never drops unless
+        // all 15 ring slots are simultaneously full (>300 ms of SD latency).
+        static char frame_buf[RING_SLOT_SIZE];
+        uint8_t frame_len = (uint8_t)serializer_serialize(frame_buf);
 
-            // Reset length ONLY while holding the mutex
-            storage_buffer_length = 0;
+        if (print_uart) {
+            serializer_serializeReadable(uartBuf);
+            print(uartBuf);
+        }
 
-            storage_buffer_length = serializer_serialize(storage_buffer);
-
-            if (print_uart) {
-                serializer_serializeReadable(uartBuf);
-                print(uartBuf);
-            }
-
-            // Signal the storage task; DO NOT release mutex here.
-            // Storage task will Semaphore_post(storage_buffer_mutex) after write.
-            Semaphore_post(storage_buffer_mailbox);
-            UART_write(uart, "MB\r\n", 4);  // Mailbox posted
+        if (Storage_push_frame(frame_buf, frame_len)) {
+            UART_write(uart, "MB\r\n", 4);  // Frame queued in ring buffer
         } else {
-            UART_write(uart, "NM\r\n", 4);  // No Mutex (couldn't acquire)
+            UART_write(uart, "RF\r\n", 4);  // Ring buffer Full — frame dropped
         }
     }
 }
@@ -652,6 +664,9 @@ void DA_get_status(int status_code, char *message) {
             break;
         case DISK_LOCKED:
             System_sprintf(uartBuf, "%s: Disk locked\n\0", message);
+            break;
+        case DISK_NO_SPACE:
+            System_sprintf(uartBuf, "%s: SD card full\n\0", message);
             break;
         default:
             System_sprintf(uartBuf, "%s: Unknown status: %d\n\0", message, status_code);
