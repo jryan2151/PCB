@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Mi Gran Amigo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', 'Comic Sans MS', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #4f46e5 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 680px;
+            width: 100%;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.35);
+            margin: 20px 0 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #5b21b6;
+            font-size: 1.9em;
+            margin-bottom: 6px;
+        }
+
+        .step-label {
+            text-align: center;
+            font-size: 0.82em;
+            color: #9ca3af;
+            margin-bottom: 22px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 26px;
+        }
+
+        .dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            transition: background 0.3s;
+        }
+        .dot.active { background: #7c3aed; }
+        .dot.done   { background: #10b981; }
+
+        /* Song display */
+        .song-box {
+            background: #faf5ff;
+            border: 2px solid #e9d5ff;
+            border-radius: 16px;
+            padding: 22px 28px;
+            text-align: center;
+            font-size: 1.15em;
+            line-height: 2.6;
+            color: #374151;
+        }
+
+        .song-line { display: block; }
+
+        /* Blank inputs */
+        .blank-input {
+            display: inline-block;
+            border: none;
+            border-bottom: 2.5px solid #7c3aed;
+            background: transparent;
+            font-size: inherit;
+            font-family: inherit;
+            color: #7c3aed;
+            text-align: center;
+            outline: none;
+            padding: 0 3px;
+            min-width: 42px;
+            transition: border-color 0.2s;
+            vertical-align: baseline;
+        }
+
+        .blank-input.correct {
+            border-bottom-color: #10b981;
+            color: #10b981;
+            font-weight: 700;
+        }
+
+        .blank-input:focus { border-bottom-color: #4f46e5; }
+
+        /* Buttons */
+        .actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 22px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 11px 26px;
+            border-radius: 50px;
+            border: none;
+            font-size: 1em;
+            font-family: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .btn:hover  { opacity: 0.88; }
+        .btn:active { transform: scale(0.97); }
+        .btn-purple { background: #7c3aed; color: white; }
+        .btn-green  { background: #10b981; color: white; }
+        .btn-ghost  { background: #f3f4f6; color: #6b7280; }
+
+        /* Progress bar */
+        .progress-wrap {
+            background: #e5e7eb;
+            border-radius: 99px;
+            height: 7px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #7c3aed, #4f46e5);
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        .feedback {
+            text-align: center;
+            min-height: 24px;
+            margin-top: 10px;
+            font-size: 0.95em;
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        /* Phase 3 */
+        .prev-lines {
+            font-size: 0.93em;
+            color: #9ca3af;
+            margin-bottom: 14px;
+            padding: 12px 18px;
+            background: #f9fafb;
+            border-radius: 12px;
+            line-height: 2;
+            text-align: center;
+        }
+
+        /* Sing-along */
+        .sing-line {
+            display: block;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: all 0.35s;
+            margin: 2px 0;
+        }
+        .sing-line.highlight {
+            background: #fef9c3;
+            color: #5b21b6;
+            font-weight: 700;
+            font-size: 1.12em;
+        }
+        .sing-line.passed { color: #d1d5db; }
+
+        .big-emoji  { text-align: center; font-size: 3em; margin: 14px 0; }
+        .phase-title {
+            text-align: center;
+            font-size: 1.25em;
+            font-weight: 700;
+            color: #5b21b6;
+            margin-bottom: 18px;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>🎵 Mi Gran Amigo</h1>
+    <div class="dots" id="dots">
+        <div class="dot" id="d0"></div>
+        <div class="dot" id="d1"></div>
+        <div class="dot" id="d2"></div>
+        <div class="dot" id="d3"></div>
+    </div>
+    <div id="root"></div>
+</div>
+
+<script>
+const SONG = [
+    { line: "Mi gran amigo es mi papá,",  words: ["Mi","gran","amigo","es","mi","papá"] },
+    { line: "y ayudarle es un placer.",    words: ["y","ayudarle","es","un","placer"] },
+    { line: "Es fácil ver que como él",   words: ["Es","fácil","ver","que","como","él"] },
+    { line: "yo trataré de ser.",          words: ["yo","trataré","de","ser"] },
+    { line: "Me enseña que la honradez",  words: ["Me","enseña","que","la","honradez"] },
+    { line: "es siempre lo mejor.",        words: ["es","siempre","lo","mejor"] },
+    { line: "Feliz yo soy con mi papá,",  words: ["Feliz","yo","soy","con","mi","papá"] },
+    { line: "y disfruto de su amor.",      words: ["y","disfruto","de","su","amor"] },
+];
+
+/* Strip accents and non-alpha so "papá" == "papa" */
+function norm(s) {
+    return s.toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z]/g, '');
+}
+
+function setDots(p) {
+    for (let i = 0; i < 4; i++) {
+        const d = document.getElementById('d' + i);
+        d.className = 'dot' + (i < p ? ' done' : i === p ? ' active' : '');
+    }
+}
+
+// ─── FASE 1 · Leer la canción ────────────────────────────────────
+function showPhase1() {
+    setDots(0);
+    document.getElementById('root').innerHTML = `
+        <div class="step-label">Paso 1 de 4 · Lee la canción</div>
+        <div class="song-box">
+            ${SONG.map(s => `<span class="song-line">${s.line}</span>`).join('')}
+        </div>
+        <div class="actions">
+            <button class="btn btn-purple" onclick="showPhase2()">¡A practicar! →</button>
+        </div>
+    `;
+}
+
+// ─── FASE 2 · Rellenar todos los espacios ────────────────────────
+let p2done = 0;
+let p2total = 0;
+
+function showPhase2() {
+    setDots(1);
+    p2done = 0;
+    p2total = SONG.reduce((n, l) => n + l.words.length, 0);
+
+    const linesHtml = SONG.map((s, li) => {
+        let lineHtml = s.words.map((w, wi) => {
+            const sz = Math.max(42, w.length * 13);
+            return `<input class="blank-input" id="p2-${li}-${wi}"
+                data-w="${w}" style="width:${sz}px"
+                oninput="p2check(this)"
+                autocomplete="off" autocorrect="off" spellcheck="false">`;
+        }).join(' ');
+
+        const last = s.line.slice(-1);
+        if (last === ',' || last === '.') lineHtml += last;
+        return `<span class="song-line">${lineHtml}</span>`;
+    }).join('');
+
+    document.getElementById('root').innerHTML = `
+        <div class="step-label">Paso 2 de 4 · Rellena los espacios en blanco</div>
+        <div class="song-box">${linesHtml}</div>
+        <div class="feedback" id="p2fb">Escribe las palabras que faltan</div>
+        <div class="actions">
+            <button class="btn btn-ghost" onclick="p2reveal()">Revelar todo</button>
+            <button class="btn btn-purple" onclick="showPhase3()">Continuar →</button>
+        </div>
+    `;
+}
+
+function p2check(inp) {
+    if (inp.readOnly) return;
+    if (norm(inp.value) === norm(inp.dataset.w)) {
+        inp.classList.add('correct');
+        inp.value = inp.dataset.w;
+        inp.readOnly = true;
+        p2done++;
+        const fb = document.getElementById('p2fb');
+        fb.textContent = p2done === p2total
+            ? '🎉 ¡Completaste todas las palabras!'
+            : `✓ ${p2done} de ${p2total} palabras`;
+    }
+}
+
+function p2reveal() {
+    document.querySelectorAll('[id^="p2-"]').forEach(inp => {
+        if (!inp.classList.contains('correct')) {
+            inp.value = inp.dataset.w;
+            inp.classList.add('correct');
+            inp.readOnly = true;
+        }
+    });
+    const fb = document.getElementById('p2fb');
+    if (fb) fb.textContent = '📖 Respuestas reveladas';
+}
+
+// ─── FASE 3 · Frase por frase ─────────────────────────────────────
+let p3line = 0;
+let p3step = 0; // 0 = pista, 1 = blancos
+
+function showPhase3() {
+    setDots(2);
+    p3line = 0;
+    p3step = 0;
+    renderP3();
+}
+
+function renderP3() {
+    const root = document.getElementById('root');
+    const pct  = Math.round((p3line / SONG.length) * 100);
+
+    if (p3line >= SONG.length) {
+        root.innerHTML = `
+            <div class="step-label">Paso 3 de 4 · ¡Completado!</div>
+            <div class="big-emoji">🌟🎉🌟</div>
+            <div class="phase-title">¡Aprendiste todas las frases!</div>
+            <div class="actions">
+                <button class="btn btn-green" onclick="showPhase4()">¡A cantar todos juntos! 🎶</button>
+            </div>
+        `;
+        return;
+    }
+
+    const cur  = SONG[p3line];
+    const last = cur.line.slice(-1);
+    const hasPunct = last === ',' || last === '.';
+
+    const prevHtml = p3line > 0
+        ? `<div class="prev-lines">${SONG.slice(0, p3line).map(s => s.line).join('<br>')}</div>`
+        : '';
+
+    let mainHtml = '';
+
+    if (p3step === 0) {
+        /* Pista: mostrar frase con la última palabra en blanco */
+        const hint = cur.words.slice(0, -1).join(' ');
+        mainHtml = `
+            <div class="song-box" style="font-size:1.2em;">
+                ${hint} <span style="color:#d1d5db; font-style:italic;">___</span>${hasPunct ? last : ''}
+            </div>
+            <div class="feedback">¿Qué palabra falta?</div>
+            <div class="actions">
+                <button class="btn btn-purple" onclick="p3advance()">Ver frase completa en blanco →</button>
+            </div>
+        `;
+    } else {
+        /* Blancos: toda la frase como inputs */
+        let inputsHtml = cur.words.map((w, wi) => {
+            const sz = Math.max(42, w.length * 13);
+            return `<input class="blank-input" id="p3-${wi}" data-w="${w}"
+                style="width:${sz}px" oninput="p3check(this)"
+                autocomplete="off" autocorrect="off" spellcheck="false">`;
+        }).join(' ');
+        if (hasPunct) inputsHtml += last;
+
+        mainHtml = `
+            <div class="song-box">${inputsHtml}</div>
+            <div class="feedback" id="p3fb">¡Canta la frase completa!</div>
+            <div class="actions">
+                <button class="btn btn-ghost" onclick="p3reveal()">Revelar</button>
+                <button class="btn btn-purple" onclick="p3advance()">Siguiente frase →</button>
+            </div>
+        `;
+    }
+
+    root.innerHTML = `
+        <div class="step-label">Paso 3 de 4 · Frase por frase (${p3line + 1} / ${SONG.length})</div>
+        <div class="progress-wrap"><div class="progress-fill" style="width:${pct}%"></div></div>
+        ${prevHtml}
+        ${mainHtml}
+    `;
+}
+
+function p3advance() {
+    if (p3step === 0) {
+        p3step = 1;
+    } else {
+        p3line++;
+        p3step = 0;
+    }
+    renderP3();
+}
+
+function p3check(inp) {
+    if (inp.readOnly) return;
+    if (norm(inp.value) === norm(inp.dataset.w)) {
+        inp.classList.add('correct');
+        inp.value = inp.dataset.w;
+        inp.readOnly = true;
+        const all = document.querySelectorAll('[id^="p3-"]');
+        if (Array.from(all).every(i => i.classList.contains('correct'))) {
+            const fb = document.getElementById('p3fb');
+            if (fb) fb.textContent = '🎉 ¡Perfecto! ¡Lo cantaste todo!';
+        }
+    }
+}
+
+function p3reveal() {
+    document.querySelectorAll('[id^="p3-"]').forEach(inp => {
+        if (!inp.classList.contains('correct')) {
+            inp.value = inp.dataset.w;
+            inp.classList.add('correct');
+            inp.readOnly = true;
+        }
+    });
+    const fb = document.getElementById('p3fb');
+    if (fb) fb.textContent = '📖 Respuestas reveladas · ¡Practica cantándola!';
+}
+
+// ─── FASE 4 · Cantar todos juntos ────────────────────────────────
+let singIdx   = 0;
+let singTimer = null;
+
+function showPhase4() {
+    setDots(3);
+    if (singTimer) clearTimeout(singTimer);
+
+    document.getElementById('root').innerHTML = `
+        <div class="step-label">Paso 4 de 4 · ¡Cantemos todos juntos!</div>
+        <div class="song-box" id="singBox">
+            ${SONG.map((s, i) => `<span class="song-line sing-line" id="sl-${i}">${s.line}</span>`).join('')}
+        </div>
+        <div class="actions">
+            <button class="btn btn-green" id="singStartBtn" onclick="startSing()">🎵 ¡Empezar a cantar!</button>
+        </div>
+        <div id="singEnd" style="display:none; text-align:center; margin-top:20px;">
+            <div class="big-emoji">🎉🎵🎊</div>
+            <div class="phase-title">¡Muy bien! ¡Lo lograste!</div>
+            <div class="actions">
+                <button class="btn btn-ghost" onclick="showPhase1()">↩ Volver al inicio</button>
+                <button class="btn btn-purple" onclick="startSing()">🔄 Cantar de nuevo</button>
+            </div>
+        </div>
+    `;
+}
+
+function startSing() {
+    if (singTimer) clearTimeout(singTimer);
+    for (let i = 0; i < SONG.length; i++) {
+        const el = document.getElementById('sl-' + i);
+        if (el) el.className = 'song-line sing-line';
+    }
+    const endDiv = document.getElementById('singEnd');
+    const btn    = document.getElementById('singStartBtn');
+    if (endDiv) endDiv.style.display = 'none';
+    if (btn)    btn.style.display    = 'none';
+    singIdx = 0;
+    tickSing();
+}
+
+function tickSing() {
+    if (singIdx > 0) {
+        const prev = document.getElementById('sl-' + (singIdx - 1));
+        if (prev) { prev.classList.remove('highlight'); prev.classList.add('passed'); }
+    }
+
+    if (singIdx >= SONG.length) {
+        const endDiv = document.getElementById('singEnd');
+        if (endDiv) endDiv.style.display = 'block';
+        return;
+    }
+
+    const el = document.getElementById('sl-' + singIdx);
+    if (el) { el.classList.add('highlight'); el.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+
+    /* ~380 ms per word, minimum 1 second */
+    const delay = Math.max(1000, SONG[singIdx].words.length * 420);
+    singTimer = setTimeout(() => { singIdx++; tickSing(); }, delay);
+}
+
+// Arrancar
+showPhase1();
+</script>
+</body>
+</html>
