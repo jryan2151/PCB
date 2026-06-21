@@ -213,7 +213,7 @@ const SONG = [
 /* Strip accents and non-alpha so "papá" == "papa" */
 function norm(s) {
     return s.toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z]/g, '');
 }
 
