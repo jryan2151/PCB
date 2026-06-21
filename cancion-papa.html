@@ -180,7 +180,8 @@
     </div>
     <div id="msg"></div>
     <div id="chips"></div>
-    <div style="text-align:center; margin-top:20px;">
+    <div style="text-align:center; margin-top:20px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <button id="revealBtn" class="btn-go" style="font-size:1em; padding:10px 22px; background:#f3f4f6; color:#6b7280;" onclick="revealAll()">Revelar todas →</button>
         <button class="btn-go" style="font-size:1em; padding:10px 22px; background:#e9d5ff; color:#5b21b6;" onclick="showLyrics()">↩ Ver letra</button>
     </div>
 </div>
@@ -310,6 +311,17 @@ function guess() {
     inp.focus();
 }
 
+/* ── Revelar todas las palabras ── */
+function revealAll() {
+    TOKENS.flat().forEach(tok => {
+        if (!tok.revealed) { tok.revealed = true; }
+    });
+    render();
+    setMsg('🎵 ¡Ahora pueden cantarla toda!', 'done', false);
+    document.getElementById('wordInput').disabled = true;
+    document.getElementById('revealBtn').style.display = 'none';
+}
+
 /* ── Vista: letra completa ── */
 function showLyrics() {
     const fullText = SONG_DATA.map(line =>
@@ -326,6 +338,7 @@ function showLyrics() {
     document.getElementById('counter').innerHTML = '📖 Lee la canción y memorízala';
     document.getElementById('wordInput').style.display = 'none';
     document.querySelector('.btn-go').style.display = 'none';
+    document.getElementById('revealBtn').style.display = 'none';
     document.getElementById('msg').textContent = '';
     document.getElementById('chips').innerHTML = '';
 
@@ -347,6 +360,7 @@ function startGame() {
     document.getElementById('wordInput').style.display = '';
     document.getElementById('wordInput').disabled = false;
     document.querySelector('.btn-go').style.display = '';
+    document.getElementById('revealBtn').style.display = '';
 
     const backBtn = document.querySelector('[onclick="startGame()"]');
     backBtn.textContent = '↩ Ver letra';
