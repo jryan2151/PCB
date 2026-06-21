@@ -180,6 +180,9 @@
     </div>
     <div id="msg"></div>
     <div id="chips"></div>
+    <div style="text-align:center; margin-top:20px;">
+        <button class="btn-go" style="font-size:1em; padding:10px 22px; background:#e9d5ff; color:#5b21b6;" onclick="showLyrics()">↩ Ver letra</button>
+    </div>
 </div>
 
 <script>
@@ -307,8 +310,56 @@ function guess() {
     inp.focus();
 }
 
-render();
-document.getElementById('wordInput').focus();
+/* ── Vista: letra completa ── */
+function showLyrics() {
+    const fullText = SONG_DATA.map(line =>
+        line.words.join(' ') + line.punct
+    ).join('\n');
+
+    document.getElementById('song').innerHTML =
+        SONG_DATA.map(line =>
+            `<span class="line found">${line.words.join(' ')}` +
+            (line.punct ? `<span class="punct">${line.punct}</span>` : '') +
+            `</span>`
+        ).join('');
+
+    document.getElementById('counter').innerHTML = '📖 Lee la canción y memorízala';
+    document.getElementById('wordInput').style.display = 'none';
+    document.querySelector('.btn-go').style.display = 'none';
+    document.getElementById('msg').textContent = '';
+    document.getElementById('chips').innerHTML = '';
+
+    /* Cambiar el botón "Ver letra" por "¡Empezar juego!" */
+    const backBtn = document.querySelector('[onclick="showLyrics()"]');
+    backBtn.textContent = '¡Empezar el juego! →';
+    backBtn.style.background = '#7c3aed';
+    backBtn.style.color = 'white';
+    backBtn.setAttribute('onclick', 'startGame()');
+}
+
+/* ── Vista: juego ── */
+function startGame() {
+    /* Resetear tokens */
+    TOKENS.flat().forEach(tok => tok.revealed = false);
+    guessedKeys.clear();
+    guessedWords.length = 0;
+
+    document.getElementById('wordInput').style.display = '';
+    document.getElementById('wordInput').disabled = false;
+    document.querySelector('.btn-go').style.display = '';
+
+    const backBtn = document.querySelector('[onclick="startGame()"]');
+    backBtn.textContent = '↩ Ver letra';
+    backBtn.style.background = '#e9d5ff';
+    backBtn.style.color = '#5b21b6';
+    backBtn.setAttribute('onclick', 'showLyrics()');
+
+    render();
+    document.getElementById('wordInput').focus();
+}
+
+/* Arrancar en la pantalla de letra */
+showLyrics();
 </script>
 </body>
 </html>
