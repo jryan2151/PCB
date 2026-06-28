@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 Mi Gran Amigo</title>
+    <title>🎵 Canciones</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -20,30 +20,65 @@
         .card {
             background: white;
             border-radius: 30px;
-            padding: 48px 56px;
-            max-width: 860px;
+            padding: 40px 52px;
+            max-width: 880px;
             width: 100%;
             box-shadow: 0 30px 100px rgba(0,0,0,0.4);
         }
 
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e9d5ff;
+            margin-bottom: 30px;
+            gap: 4px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px 10px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.88em;
+            font-weight: 700;
+            color: #c4b5fd;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+            text-align: center;
+            line-height: 1.3;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab:hover { color: #7c3aed; background: #faf5ff; }
+
+        .tab.active {
+            color: #7c3aed;
+            border-bottom-color: #7c3aed;
+            background: #faf5ff;
+        }
+
+        /* ── Title ── */
         h1 {
             text-align: center;
             color: #5b21b6;
-            font-size: 2.6em;
-            margin-bottom: 36px;
+            font-size: 2.4em;
+            margin-bottom: 28px;
             letter-spacing: -0.5px;
         }
 
+        /* ── Song display ── */
         #song {
-            font-size: 2em;
+            font-size: 1.9em;
             line-height: 2.4;
             text-align: center;
-            margin-bottom: 28px;
+            margin-bottom: 26px;
         }
 
         .line { display: block; }
-
-        .w { display: inline-block; margin: 0 2px; }
+        .w    { display: inline-block; margin: 0 2px; }
 
         .blank {
             color: #d1d5db;
@@ -51,12 +86,8 @@
             letter-spacing: 3px;
         }
 
-        .found {
-            color: #5b21b6;
-            font-weight: 700;
-        }
-
-        .dim { color: #d1d5db; }
+        .found { color: #5b21b6; font-weight: 700; }
+        .dim   { color: #d1d5db; }
 
         .fresh {
             color: #10b981;
@@ -72,14 +103,16 @@
 
         .punct { color: #9ca3af; }
 
+        /* ── Counter ── */
         #counter {
             text-align: center;
             color: #9ca3af;
-            font-size: 1.05em;
-            margin-bottom: 24px;
+            font-size: 1em;
+            margin-bottom: 22px;
         }
-        #counter b { color: #7c3aed; font-size: 1.1em; }
+        #counter b { color: #7c3aed; }
 
+        /* ── Input ── */
         .input-row {
             display: flex;
             gap: 12px;
@@ -87,14 +120,14 @@
         }
 
         #wordInput {
-            font-size: 1.6em;
-            padding: 15px 28px;
+            font-size: 1.5em;
+            padding: 14px 26px;
             border: 3px solid #e9d5ff;
             border-radius: 50px;
             outline: none;
             font-family: inherit;
             color: #374151;
-            width: 320px;
+            width: 300px;
             text-align: center;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
@@ -114,11 +147,12 @@
             75%      { transform: translateX(9px); }
         }
 
+        /* ── Buttons ── */
         .btn {
-            padding: 15px 30px;
+            padding: 14px 28px;
             border: none;
             border-radius: 50px;
-            font-size: 1.5em;
+            font-size: 1.45em;
             font-weight: 700;
             cursor: pointer;
             font-family: inherit;
@@ -130,20 +164,23 @@
         .btn-green  { background: #10b981; color: white; }
         .btn-gray   { background: #f3f4f6; color: #6b7280; }
         .btn-light  { background: #e9d5ff; color: #5b21b6; }
+        .btn-sm     { font-size: 0.95em !important; padding: 10px 20px !important; }
 
+        /* ── Feedback ── */
         #msg {
             text-align: center;
-            min-height: 34px;
-            margin-top: 16px;
-            font-size: 1.2em;
+            min-height: 32px;
+            margin-top: 14px;
+            font-size: 1.15em;
             font-weight: 600;
         }
         .good { color: #10b981; }
         .bad  { color: #ef4444; }
-        .done { color: #5b21b6; font-size: 1.4em !important; }
+        .done { color: #5b21b6; font-size: 1.35em !important; }
 
+        /* ── Chips ── */
         #chips {
-            margin-top: 18px;
+            margin-top: 16px;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -153,30 +190,33 @@
             background: #f0fdf4;
             border: 1.5px solid #a7f3d0;
             color: #065f46;
-            padding: 5px 15px;
+            padding: 4px 14px;
             border-radius: 50px;
-            font-size: 0.9em;
+            font-size: 0.88em;
         }
 
+        /* ── Bottom buttons ── */
         #bottomBtns {
-            margin-top: 20px;
+            margin-top: 18px;
             display: flex;
-            gap: 12px;
+            gap: 10px;
             justify-content: center;
             flex-wrap: wrap;
-        }
-
-        .btn-sm {
-            font-size: 1em !important;
-            padding: 10px 22px !important;
         }
     </style>
 </head>
 <body>
 <div class="card">
-    <h1>🎵 Mi Gran Amigo</h1>
+    <div class="tabs">
+        <button class="tab active" id="tab0" onclick="switchSong(0)">Mi Gran Amigo</button>
+        <button class="tab"        id="tab1" onclick="switchSong(1)">Voy a ser valiente</button>
+        <button class="tab"        id="tab2" onclick="switchSong(2)">Amad a otros</button>
+    </div>
+
+    <h1 id="title">🎵 Mi Gran Amigo</h1>
     <div id="song"></div>
     <div id="counter"></div>
+
     <div class="input-row">
         <input type="text" id="wordInput"
             placeholder="escribe una palabra…"
@@ -185,53 +225,112 @@
             onkeydown="if(event.key==='Enter') submit()">
         <button class="btn btn-purple" id="submitBtn" onclick="submit()">→</button>
     </div>
+
     <div id="msg"></div>
     <div id="chips"></div>
+
     <div id="bottomBtns">
-        <button class="btn btn-gray btn-sm" id="revealBtn" onclick="revealOrSkip()">Revelar todas →</button>
-        <button class="btn btn-light btn-sm" id="backBtn" onclick="showLyrics()">↩ Ver letra</button>
+        <button class="btn btn-gray btn-sm"  id="revealBtn" onclick="revealOrSkip()">Revelar todas →</button>
+        <button class="btn btn-light btn-sm" id="backBtn"   onclick="showLyrics()">↩ Ver letra</button>
     </div>
 </div>
 
 <script>
-const SONG_DATA = [
-    { words: ["Mi","gran","amigo","es","mi","papá"],   punct: ",", hide: [2,5] },
-    { words: ["y","ayudarle","es","un","placer"],       punct: ".", hide: [1,4] },
-    { words: ["Es","fácil","ver","que","como","él"],    punct: "",  hide: [1,5] },
-    { words: ["yo","trataré","de","ser"],               punct: ".", hide: [1,3] },
-    { words: ["Me","enseña","que","la","honradez"],     punct: "",  hide: [1,4] },
-    { words: ["es","siempre","lo","mejor"],             punct: ".", hide: [1,3] },
-    { words: ["Feliz","yo","soy","con","mi","papá"],    punct: ",", hide: [0,2] },
-    { words: ["y","disfruto","de","su","amor"],         punct: ".", hide: [1,4] },
+/* ═══════════════════════════════════════════
+   DATOS DE LAS CANCIONES
+═══════════════════════════════════════════ */
+const SONGS = [
+  {
+    title: "Mi Gran Amigo",
+    lines: [
+      { words: ["Mi","gran","amigo","es","mi","papá"],    punct: ",", hide: [2,5] },
+      { words: ["y","ayudarle","es","un","placer"],        punct: ".", hide: [1,4] },
+      { words: ["Es","fácil","ver","que","como","él"],     punct: "",  hide: [1,5] },
+      { words: ["yo","trataré","de","ser"],                punct: ".", hide: [1,3] },
+      { words: ["Me","enseña","que","la","honradez"],      punct: "",  hide: [1,4] },
+      { words: ["es","siempre","lo","mejor"],              punct: ".", hide: [1,3] },
+      { words: ["Feliz","yo","soy","con","mi","papá"],     punct: ",", hide: [0,2] },
+      { words: ["y","disfruto","de","su","amor"],          punct: ".", hide: [1,4] },
+    ]
+  },
+  {
+    title: "Voy a ser valiente",
+    lines: [
+      { words: ["Valientes","siervos","busca"],                              punct: "",  hide: [0,1] },
+      { words: ["para","Su","obra","nuestro","Señor"],                       punct: ",", hide: [3,4] },
+      { words: ["que","por","Sus","preceptos","los","guíe"],                  punct: "",  hide: [3,5] },
+      { words: ["y","sirvan","a","Su","pueblo","con","amor"],                 punct: ".", hide: [4,6] },
+      { words: ["Voy","a","ser","Su","siervo"],                              punct: "",  hide: [0,4] },
+      { words: ["y","mis","convenios","observar"],                            punct: ".", hide: [2,3] },
+      { words: ["Defenderé","la","rectitud"],                                 punct: "",  hide: [0,2] },
+      { words: ["y","en","mí","Él","podrá","confiar"],                       punct: ".", hide: [4,5] },
+    ]
+  },
+  {
+    title: "Amad a otros",
+    lines: [
+      { words: ["Como","os","he","amado,","amad","a","otros"],  punct: ".", hide: [4,6] },
+      { words: ["Un","nuevo","mandamiento,","amad","a","otros"], punct: ".", hide: [3,5] },
+      { words: ["Por","esto","sabrán","que","sois","discípulos","míos"], punct: ",", hide: [2,5] },
+      { words: ["si","os","amáis","unos","a","otros"],           punct: ".", hide: [2,5] },
+    ]
+  }
 ];
 
+/* ═══════════════════════════════════════════
+   ESTADO GLOBAL
+═══════════════════════════════════════════ */
 function norm(s) {
     return s.toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z]/g, '');
 }
 
-let _id = 0;
-const TOKENS = SONG_DATA.map((line, li) =>
-    line.words.map((w, wi) => ({
-        id: _id++, word: w, key: norm(w),
-        revealed: false, li, wi,
-        isLast: wi === line.words.length - 1
-    }))
-);
+let currentSong = 0;
+let SONG_DATA   = SONGS[0].lines;
+let TOKENS      = buildTokens(SONG_DATA);
 
-let mode = 'lyrics'; // 'lyrics' | 'game' | 'phrase'
-let phraseIdx = 0;
-let phraseFound = new Set();
-let msgTimer = null;
+let mode       = 'lyrics';
+let phraseIdx  = 0;
+let phraseFound= new Set();
+let msgTimer   = null;
+let guessedKeys  = new Set();
+let guessedWords = [];
 
-const guessedKeys  = new Set();
-const guessedWords = [];
+function buildTokens(data) {
+    let id = 0;
+    return data.map((line, li) =>
+        line.words.map((w, wi) => ({
+            id: id++, word: w, key: norm(w),
+            revealed: false, li, wi,
+            isLast: wi === line.words.length - 1
+        }))
+    );
+}
 
-/* ── Helpers ── */
+/* ═══════════════════════════════════════════
+   CAMBIO DE CANCIÓN
+═══════════════════════════════════════════ */
+function switchSong(idx) {
+    currentSong  = idx;
+    SONG_DATA    = SONGS[idx].lines;
+    TOKENS       = buildTokens(SONG_DATA);
+    guessedKeys  = new Set();
+    guessedWords = [];
+    mode         = 'lyrics';
+    phraseIdx    = 0;
 
-function norm2(s) { return norm(s); }
+    document.querySelectorAll('.tab').forEach((t, i) => {
+        t.className = 'tab' + (i === idx ? ' active' : '');
+    });
+    document.getElementById('title').textContent = '🎵 ' + SONGS[idx].title;
 
+    showLyrics();
+}
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
 function setMsg(text, cls, autoClear = true) {
     clearTimeout(msgTimer);
     const el = document.getElementById('msg');
@@ -240,20 +339,16 @@ function setMsg(text, cls, autoClear = true) {
     if (autoClear) msgTimer = setTimeout(() => { el.textContent = ''; }, 2600);
 }
 
-function submit() {
-    if (mode === 'game')   guess();
-    if (mode === 'phrase') guessPhrase();
+function blankFor(word) {
+    return '_'.repeat(norm(word).length || word.length);
 }
 
-function revealOrSkip() {
-    if (mode === 'game')   revealAll();
-    if (mode === 'phrase') skipPhrase();
-}
+function submit()      { if (mode === 'game')   guess();     if (mode === 'phrase') guessPhrase(); }
+function revealOrSkip(){ if (mode === 'game')   revealAll(); if (mode === 'phrase') skipPhrase();  }
 
-/* ══════════════════════════════════════
+/* ═══════════════════════════════════════════
    FASE 1 · Letra completa
-══════════════════════════════════════ */
-
+═══════════════════════════════════════════ */
 function showLyrics() {
     mode = 'lyrics';
 
@@ -278,19 +373,20 @@ function showLyrics() {
     back.style.display = '';
 }
 
-/* ══════════════════════════════════════
+/* ═══════════════════════════════════════════
    FASE 2 · Adivina las palabras
-══════════════════════════════════════ */
-
+═══════════════════════════════════════════ */
 function startGame() {
     mode = 'game';
-    TOKENS.flat().forEach(tok => { tok.revealed = false; });
-    guessedKeys.clear();
-    guessedWords.length = 0;
+    TOKENS.flat().forEach(t => { t.revealed = false; });
+    guessedKeys  = new Set();
+    guessedWords = [];
 
     document.getElementById('wordInput').style.display = '';
     document.getElementById('wordInput').disabled = false;
+    document.getElementById('wordInput').value = '';
     document.getElementById('submitBtn').style.display = '';
+    document.getElementById('chips').innerHTML = '';
 
     const rev = document.getElementById('revealBtn');
     rev.textContent = 'Revelar todas →';
@@ -304,7 +400,6 @@ function startGame() {
     back.setAttribute('onclick', 'showLyrics()');
     back.style.display = '';
 
-    document.getElementById('chips').innerHTML = '';
     renderGame();
     document.getElementById('wordInput').focus();
 }
@@ -315,10 +410,9 @@ function renderGame(freshIds = new Set()) {
         html += '<span class="line">';
         lineTokens.forEach(tok => {
             if (tok.revealed) {
-                const cls = freshIds.has(tok.id) ? 'w fresh' : 'w found';
-                html += `<span class="${cls}">${tok.word}</span>`;
+                html += `<span class="${freshIds.has(tok.id) ? 'w fresh' : 'w found'}">${tok.word}</span>`;
             } else {
-                html += `<span class="w blank">${'_'.repeat(tok.word.length)}</span>`;
+                html += `<span class="w blank">${blankFor(tok.word)}</span>`;
             }
             if (tok.isLast && SONG_DATA[li].punct)
                 html += `<span class="punct">${SONG_DATA[li].punct}</span>`;
@@ -333,11 +427,10 @@ function renderGame(freshIds = new Set()) {
         }, 650);
     }
 
-    const flat     = TOKENS.flat();
-    const revealed = flat.filter(t => t.revealed).length;
+    const flat = TOKENS.flat();
+    const rev  = flat.filter(t => t.revealed).length;
     document.getElementById('counter').innerHTML =
-        `Palabras encontradas: <b>${revealed}</b> de ${flat.length}`;
-
+        `Palabras encontradas: <b>${rev}</b> de ${flat.length}`;
     document.getElementById('chips').innerHTML =
         guessedWords.map(w => `<span class="chip">✓ ${w}</span>`).join('');
 }
@@ -348,7 +441,6 @@ function guess() {
     if (!word) { inp.focus(); return; }
 
     const key = norm(word);
-
     if (guessedKeys.has(key)) {
         setMsg(`"${word}" ya la dijiste 😉`, 'bad');
         inp.value = ''; inp.focus(); return;
@@ -362,11 +454,8 @@ function guess() {
     if (freshIds.size) {
         guessedKeys.add(key);
         guessedWords.push(word.toLowerCase());
-        const times = freshIds.size;
-        setMsg(
-            times > 1 ? `¡Sí! "${word}" aparece ${times} veces 🎉` : `¡Sí! "${word}" está en la canción ✓`,
-            'good'
-        );
+        const n = freshIds.size;
+        setMsg(n > 1 ? `¡Sí! "${word}" aparece ${n} veces 🎉` : `¡Sí! "${word}" está en la canción ✓`, 'good');
         renderGame(freshIds);
 
         if (TOKENS.flat().every(t => t.revealed)) {
@@ -389,7 +478,7 @@ function guess() {
 }
 
 function revealAll() {
-    TOKENS.flat().forEach(tok => { tok.revealed = true; });
+    TOKENS.flat().forEach(t => { t.revealed = true; });
     renderGame();
     document.getElementById('wordInput').disabled = true;
     const rev = document.getElementById('revealBtn');
@@ -399,10 +488,9 @@ function revealAll() {
     setMsg('🎵 ¡Ahora vamos frase por frase!', 'done', false);
 }
 
-/* ══════════════════════════════════════
+/* ═══════════════════════════════════════════
    FASE 3 · Frase por frase
-══════════════════════════════════════ */
-
+═══════════════════════════════════════════ */
 function startPhraseGame() {
     mode = 'phrase';
     phraseIdx = 0;
@@ -412,27 +500,22 @@ function startPhraseGame() {
 }
 
 function renderPhrase() {
-    if (phraseIdx >= SONG_DATA.length) {
-        showFinalSing();
-        return;
-    }
+    if (phraseIdx >= SONG_DATA.length) { showFinalSing(); return; }
 
     phraseFound = new Set();
-    const line    = SONG_DATA[phraseIdx];
-    const hidden  = new Set(line.hide);
+    const line   = SONG_DATA[phraseIdx];
+    const hidden = new Set(line.hide);
 
-    /* Frases anteriores en gris */
     let html = '';
     for (let i = 0; i < phraseIdx; i++) {
-        const prev = SONG_DATA[i];
-        html += `<span class="line dim">${prev.words.join(' ')}${prev.punct}</span>`;
+        const p = SONG_DATA[i];
+        html += `<span class="line dim">${p.words.join(' ')}${p.punct}</span>`;
     }
 
-    /* Frase actual con blancos */
-    html += '<span class="line" style="font-size:1.05em;">';
+    html += '<span class="line">';
     line.words.forEach((w, i) => {
         if (hidden.has(i)) {
-            html += `<span class="w blank" id="ph-${i}">${'_'.repeat(w.length)}</span> `;
+            html += `<span class="w blank" id="ph-${i}">${blankFor(w)}</span> `;
         } else {
             html += `<span class="w found">${w}</span> `;
         }
@@ -444,7 +527,6 @@ function renderPhrase() {
     document.getElementById('counter').innerHTML =
         `🎤 Frase ${phraseIdx + 1} de ${SONG_DATA.length} · ¡Di las palabras que faltan!`;
     document.getElementById('msg').textContent = '';
-
     document.getElementById('wordInput').style.display = '';
     document.getElementById('wordInput').disabled = false;
     document.getElementById('wordInput').value = '';
@@ -482,12 +564,9 @@ function guessPhrase() {
     });
 
     if (found) {
-        const remaining = line.hide.length - phraseFound.size;
-        if (remaining === 0) {
-            phraseComplete();
-        } else {
-            setMsg(`¡Bien! Falta ${remaining} palabra${remaining > 1 ? 's' : ''} más`, 'good');
-        }
+        const rem = line.hide.length - phraseFound.size;
+        if (rem === 0) phraseComplete();
+        else setMsg(`¡Bien! Falta${rem > 1 ? 'n' : ''} ${rem} más`, 'good');
     } else {
         setMsg(`"${word}" no es ninguna de las que faltan`, 'bad');
         inp.classList.add('shake');
@@ -520,15 +599,11 @@ function phraseComplete() {
     rev.setAttribute('onclick', 'nextPhrase()');
 }
 
-function nextPhrase() {
-    phraseIdx++;
-    renderPhrase();
-}
+function nextPhrase() { phraseIdx++; renderPhrase(); }
 
-/* ══════════════════════════════════════
-   FINAL · Cantar toda la canción
-══════════════════════════════════════ */
-
+/* ═══════════════════════════════════════════
+   FINAL · Cantar juntos
+═══════════════════════════════════════════ */
 function showFinalSing() {
     mode = 'lyrics';
     document.getElementById('song').innerHTML =
