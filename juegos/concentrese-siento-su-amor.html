@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Concéntrese: Yo siento Su amor</title>
+<style>
+  :root{
+    --yellow:#f5f8dd;
+    --blue:#dbe9f7;
+    --purple:#ece0f5;
+    --ink:#3a3a3a;
+    --accent:#e0637a;
+    --accent2:#4d8fc7;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; min-height:100%;
+    background:linear-gradient(160deg,var(--yellow),var(--blue) 50%,var(--purple));
+    font-family:"Comic Sans MS","Segoe UI Rounded","Trebuchet MS",system-ui,sans-serif;
+    color:var(--ink);
+    -webkit-user-select:none; user-select:none;
+    touch-action:manipulation;
+    overflow-x:hidden;
+  }
+  .wrap{
+    max-width:760px; margin:0 auto; padding:env(safe-area-inset-top,16px) 14px 40px;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+  }
+  h1{
+    text-align:center; font-size:clamp(22px,5vw,34px); margin:8px 0 2px;
+    color:var(--accent2); text-shadow:1px 1px 0 #fff;
+  }
+  .subtitle{ text-align:center; font-size:clamp(14px,3vw,18px); margin:0 0 14px; color:#555;}
+
+  .controls{
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-bottom:14px; width:100%;
+  }
+  .diff-group{ display:flex; gap:8px; }
+  button{
+    font-family:inherit; font-weight:bold; border:none; border-radius:14px;
+    padding:10px 16px; font-size:15px; cursor:pointer;
+    box-shadow:0 3px 0 rgba(0,0,0,0.15);
+    transition:transform .08s ease;
+    -webkit-touch-callout:none;
+  }
+  button:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,0.15); }
+  .diff-btn{ background:#fff; color:var(--ink); }
+  .diff-btn.active{ background:var(--accent2); color:#fff; }
+  .restart-btn{ background:var(--accent); color:#fff; }
+
+  .stats{
+    display:flex; gap:18px; justify-content:center; margin-bottom:12px;
+    font-size:15px; font-weight:bold; color:#555; flex-wrap:wrap;
+  }
+  .stats span{ background:#ffffffaa; padding:6px 12px; border-radius:12px; }
+
+  .board{
+    display:grid; gap:10px; width:100%; perspective:800px;
+  }
+
+  .card{
+    position:relative; aspect-ratio:1/1; cursor:pointer;
+  }
+  .card-inner{
+    position:absolute; inset:0; transform-style:preserve-3d;
+    transition:transform .45s cubic-bezier(.2,.9,.3,1.1);
+  }
+  .card.flipped .card-inner, .card.matched .card-inner{
+    transform:rotateY(180deg);
+  }
+  .card-face{
+    position:absolute; inset:0; border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+    backface-visibility:hidden;
+    box-shadow:0 3px 6px rgba(0,0,0,0.15);
+  }
+  .card-back{
+    background:linear-gradient(135deg,var(--accent2),#7db3e0);
+    font-size:clamp(20px,6vw,34px);
+  }
+  .card-back::after{ content:"❤"; color:#fff; opacity:.85; }
+  .card-front{
+    background:#fff;
+    transform:rotateY(180deg);
+    font-size:clamp(26px,8vw,46px);
+    flex-direction:column;
+    padding:4px;
+    text-align:center;
+  }
+  .card-front .lbl{
+    font-size:clamp(8px,2.2vw,12px); font-weight:bold; color:#777; margin-top:2px;
+  }
+  .card.matched .card-back{ opacity:.4; }
+  .card.matched .card-front{ background:#eafbea; box-shadow:0 0 0 3px #7fd67f inset; }
+
+  .win-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.45);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:10;
+  }
+  .win-overlay.show{ display:flex; }
+  .win-card{
+    background:#fff; border-radius:20px; padding:26px 22px; text-align:center;
+    max-width:340px; box-shadow:0 10px 30px rgba(0,0,0,0.3);
+  }
+  .win-card h2{ color:var(--accent); margin:0 0 8px; font-size:26px; }
+  .win-card p{ margin:4px 0 16px; color:#555; }
+
+  @media (min-width:520px){
+    .board.cols-3{ grid-template-columns:repeat(4,1fr); }
+    .board.cols-4{ grid-template-columns:repeat(4,1fr); }
+    .board.cols-5{ grid-template-columns:repeat(5,1fr); }
+  }
+  @media (max-width:519px){
+    .board.cols-3{ grid-template-columns:repeat(3,1fr); }
+    .board.cols-4{ grid-template-columns:repeat(4,1fr); }
+    .board.cols-5{ grid-template-columns:repeat(4,1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Yo siento Su amor</h1>
+  <p class="subtitle">Concéntrese — encuentra todas las parejas 💛</p>
+
+  <div class="controls">
+    <div class="diff-group">
+      <button class="diff-btn" data-level="facil">Fácil</button>
+      <button class="diff-btn" data-level="normal">Normal</button>
+      <button class="diff-btn" data-level="dificil">Difícil</button>
+    </div>
+    <button class="restart-btn" id="restartBtn">🔄 Nuevo juego</button>
+  </div>
+
+  <div class="stats">
+    <span>🕒 <span id="timer">0:00</span></span>
+    <span>👆 Intentos: <span id="moves">0</span></span>
+    <span>💖 Parejas: <span id="pairs">0</span>/<span id="totalPairs">0</span></span>
+  </div>
+
+  <div class="board" id="board"></div>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-card">
+    <h2>🎉 ¡Lo lograste! 🎉</h2>
+    <p id="winText"></p>
+    <button class="restart-btn" id="playAgainBtn">Jugar otra vez</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Iconos temáticos inspirados en "Yo siento Su amor"
+  const ICONS = [
+    {e:"🏞️", l:"Naturaleza"},
+    {e:"🤗", l:"Abrazo"},
+    {e:"❤️", l:"Su amor"},
+    {e:"🌙", l:"Oración"},
+    {e:"✨", l:"Alegría"},
+    {e:"🐑", l:"El Pastor"},
+    {e:"🎒", l:"Seguirlo"},
+    {e:"💗", l:"Mi corazón"},
+    {e:"😌", l:"Calma"},
+    {e:"🕊️", l:"Bendición"},
+  ];
+
+  const LEVELS = {
+    facil:   {pairs:6,  cols:3},
+    normal:  {pairs:8,  cols:4},
+    dificil: {pairs:10, cols:5},
+  };
+
+  const boardEl = document.getElementById('board');
+  const movesEl = document.getElementById('moves');
+  const pairsEl = document.getElementById('pairs');
+  const totalPairsEl = document.getElementById('totalPairs');
+  const timerEl = document.getElementById('timer');
+  const winOverlay = document.getElementById('winOverlay');
+  const winText = document.getElementById('winText');
+
+  let level = 'normal';
+  let cards = [];
+  let flipped = [];
+  let locked = false;
+  let moves = 0;
+  let matchedPairs = 0;
+  let totalPairs = 0;
+  let seconds = 0;
+  let timerHandle = null;
+
+  function beep(freq, dur){
+    try{
+      const ctx = beep.ctx || (beep.ctx = new (window.AudioContext||window.webkitAudioContext)());
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + dur);
+    }catch(e){}
+  }
+
+  function shuffle(arr){
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  function startTimer(){
+    stopTimer();
+    seconds = 0;
+    timerEl.textContent = '0:00';
+    timerHandle = setInterval(()=>{
+      seconds++;
+      const m = Math.floor(seconds/60);
+      const s = String(seconds%60).padStart(2,'0');
+      timerEl.textContent = m + ':' + s;
+    }, 1000);
+  }
+  function stopTimer(){
+    if(timerHandle){ clearInterval(timerHandle); timerHandle = null; }
+  }
+
+  function buildBoard(){
+    const cfg = LEVELS[level];
+    totalPairs = cfg.pairs;
+    totalPairsEl.textContent = totalPairs;
+    matchedPairs = 0;
+    moves = 0;
+    movesEl.textContent = 0;
+    pairsEl.textContent = 0;
+    flipped = [];
+    locked = false;
+    winOverlay.classList.remove('show');
+
+    const chosen = shuffle(ICONS.slice()).slice(0, cfg.pairs);
+    let deck = shuffle(chosen.concat(chosen).map((it,idx)=>({...it, uid: idx})));
+
+    boardEl.className = 'board cols-' + cfg.cols;
+    boardEl.innerHTML = '';
+    cards = [];
+
+    deck.forEach((item, idx)=>{
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.idx = idx;
+      card.dataset.icon = item.e;
+      card.innerHTML =
+        '<div class="card-inner">' +
+          '<div class="card-face card-back"></div>' +
+          '<div class="card-face card-front"><div>' + item.e + '</div><div class="lbl">' + item.l + '</div></div>' +
+        '</div>';
+      card.addEventListener('click', ()=>onCardClick(card));
+      boardEl.appendChild(card);
+      cards.push(card);
+    });
+
+    startTimer();
+  }
+
+  function onCardClick(card){
+    if(locked) return;
+    if(card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+    card.classList.add('flipped');
+    flipped.push(card);
+
+    if(flipped.length === 2){
+      moves++;
+      movesEl.textContent = moves;
+      locked = true;
+      const [a,b] = flipped;
+      if(a.dataset.icon === b.dataset.icon){
+        setTimeout(()=>{
+          a.classList.add('matched');
+          b.classList.add('matched');
+          matchedPairs++;
+          pairsEl.textContent = matchedPairs;
+          beep(660,0.15);
+          flipped = [];
+          locked = false;
+          if(matchedPairs === totalPairs){
+            stopTimer();
+            setTimeout(showWin, 400);
+          }
+        }, 350);
+      } else {
+        beep(220,0.15);
+        setTimeout(()=>{
+          a.classList.remove('flipped');
+          b.classList.remove('flipped');
+          flipped = [];
+          locked = false;
+        }, 700);
+      }
+    }
+  }
+
+  function showWin(){
+    winText.textContent = 'Encontraste las ' + totalPairs + ' parejas en ' + moves + ' intentos y ' + timerEl.textContent + '. ¡Yo siento Su amor! 💛';
+    winOverlay.classList.add('show');
+    beep(880,0.2);
+    setTimeout(()=>beep(1046,0.25), 150);
+  }
+
+  document.querySelectorAll('.diff-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      level = btn.dataset.level;
+      buildBoard();
+    });
+  });
+  document.getElementById('restartBtn').addEventListener('click', buildBoard);
+  document.getElementById('playAgainBtn').addEventListener('click', buildBoard);
+
+  document.querySelector('.diff-btn[data-level="normal"]').classList.add('active');
+  buildBoard();
+})();
+</script>
+</body>
+</html>
